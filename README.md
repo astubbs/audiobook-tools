@@ -25,13 +25,11 @@ git clone https://github.com/yourusername/audiobook-tools.git
 cd audiobook-tools
 poetry install
 
-# Run the tool (choose one method):
-poetry run audiobook-tools --help     # Run directly through Poetry
-# OR
-poetry env activate                   # Activate virtual environment
-source $(poetry env info --path)/bin/activate.fish  # For fish shell
-audiobook-tools --help               # Run command directly
+# Run the tool
+poetry run audiobook-tools
 ```
+
+The tool will launch with an interactive Terminal User Interface (TUI) that will guide you through the process step by step.
 
 ## Installation
 
@@ -55,7 +53,7 @@ cd audiobook-tools
 poetry install
 
 # Run the tool
-poetry run audiobook-tools --help
+poetry run audiobook-tools
 ```
 
 ### System Requirements
@@ -82,27 +80,48 @@ Place your audiobook files in a directory structure like:
 ## Usage
 
 ### Basic Usage
+Simply run the tool and follow the interactive prompts:
 ```bash
-# Process an audiobook directory (interactive mode with TUI)
-audiobook-tools process ./audiobook-dir
-
-# Just combine CUE sheets
-audiobook-tools combine-cue ./audiobook-dir ./output-dir
-
-# Preview what would happen
-audiobook-tools process ./audiobook-dir --dry-run
+audiobook-tools
 ```
 
-### Advanced Usage
+The Terminal User Interface (TUI) will guide you through:
+1. Selecting your audiobook directory
+2. Choosing an output directory
+3. Selecting output format
+4. Adding metadata (title, artist, cover art)
+5. Processing the audiobook
+
+### Command Line Options
+For automation or advanced usage, you can explore the available options:
+
 ```bash
-# Full options example
+# Show all available commands
+audiobook-tools --help
+
+# Show options for a specific command
+audiobook-tools process --help
+audiobook-tools combine-cue --help
+```
+
+Example usage without TUI:
+
+```bash
+# Process without TUI
 audiobook-tools process ./audiobook-dir \
+    --no-tui \
     --output-dir ./out \
     --output-format m4b-ffmpeg \
     --bitrate 64k \
     --title "Book Title" \
     --artist "Author Name" \
     --cover cover.jpg
+
+# Preview what would happen
+audiobook-tools process ./audiobook-dir --dry-run
+
+# Just combine CUE sheets
+audiobook-tools combine-cue ./audiobook-dir ./output-dir
 ```
 
 ### Interface Options
