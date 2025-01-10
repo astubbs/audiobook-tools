@@ -9,7 +9,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    container: python:3.13-slim
+    container: python:3.13
 
     steps:
     - uses: actions/checkout@v4
@@ -17,7 +17,7 @@ jobs:
     - name: Install system dependencies
       run: |
         apt-get update
-        apt-get install -y ffmpeg gpac sox curl
+        apt-get install -y ffmpeg gpac sox
     
     - name: Install Poetry
       run: |
