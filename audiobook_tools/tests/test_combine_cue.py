@@ -1,6 +1,8 @@
 """Tests for CUE sheet combining functionality."""
 
 from pathlib import Path
+import pytest
+from unittest.mock import patch
 
 from audiobook_tools.core.cue import CueProcessor
 
@@ -50,11 +52,19 @@ def test_parse_cue_file(tmp_path):
     assert cue_sheet.tracks[0].index[1] == "00:00:00"
 
 
-def test_combine_cue_sheets(tmp_path):
+@patch.object(CueProcessor, 'get_audio_length')
+def test_combine_cue_sheets(mock_get_audio_length, tmp_path):
     """Test combining multiple CUE sheets into one."""
+    # Mock audio file duration
+    mock_get_audio_length.return_value = 300.0  # 5 minutes
+
     # Create test CUE files with track information
-    cue1 = tmp_path / "cd1.cue"
-    cue2 = tmp_path / "cd2.cue"
+    cue1 = tmp_path / "CD1" / "cd1.cue"
+    cue2 = tmp_path / "CD2" / "cd2.cue"
+
+    # Create directories
+    cue1.parent.mkdir(parents=True)
+    cue2.parent.mkdir(parents=True)
 
     # Write test content with track metadata
     cue1_content = (
@@ -76,8 +86,8 @@ def test_combine_cue_sheets(tmp_path):
     cue2.write_text(cue2_content)
 
     # Create test FLAC files
-    flac1 = tmp_path / "cd1.flac"
-    flac2 = tmp_path / "cd2.flac"
+    flac1 = tmp_path / "CD1" / "cd1.flac"
+    flac2 = tmp_path / "CD2" / "cd2.flac"
     flac1.touch()
     flac2.touch()
 

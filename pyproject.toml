@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "audiobook-tools"
+name = "audiobook_tools"
 version = "0.1.0"
 description = "Tools for processing audiobooks with chapters"
 authors = ["Antony Stubbs <antony.stubbs@gmail.com>"]
@@ -23,6 +23,8 @@ mypy = "^1.8.0"
 
 [tool.poetry.scripts]
 audiobook-tools = "audiobook_tools.cli.main:main"
+abt = "audiobook_tools.cli.main:main"
+process_audiobook = "audiobook_tools.cli.main:main"
 
 [build-system]
 requires = ["poetry-core"]
@@ -36,3 +38,10 @@ include = '\.pyi?$'
 [tool.isort]
 profile = "black"
 multi_line_output = 3 
+
+[tool.pytest.ini_options]
+testpaths = ["audiobook_tools/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v" 
