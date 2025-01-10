@@ -19,6 +19,14 @@ This section provides context and guidelines specifically for LLMs assisting wit
 - Support both modern (TUI) and traditional (CLI) interfaces
 - Maintain backward compatibility when possible
 
+### Test Design Guidelines
+- Tests should verify behavior and outcomes, not implementation details
+- Avoid over-specifying exact commands, call orders, or implementation specifics
+- Focus on what the code does, not how it does it
+- Allow for flexibility in the implementation while ensuring correct behavior
+- Mock external dependencies but don't be too strict about exact command parameters
+- Use reasonable sample data that demonstrates the feature without referencing real copyrighted works
+
 ### Common LLM Considerations
 - Always read existing file content before suggesting edits
 - Maintain consistent code style with the existing codebase
