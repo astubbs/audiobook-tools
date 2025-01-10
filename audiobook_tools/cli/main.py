@@ -44,7 +44,7 @@ from typing import Optional
 import click
 
 from ..core.cue import CueProcessingError, CueProcessor
-from ..core.processor import AudiobookProcessor, ProcessingOptions
+from ..core.processor import AudiobookMetadata, AudiobookProcessor, ProcessingOptions
 from ..utils.audio import (
     AudioConfig,
     AudioProcessingError,
@@ -233,15 +233,16 @@ def process(
         if ctx.obj.use_tui:
             tui_module.display_header("Processing Audiobook")
 
+        # Create metadata object
+        metadata = AudiobookMetadata(title=title, artist=artist, cover_art=cover)
+
         # Create processor to find files
         options = ProcessingOptions(
             input_dir=input_dir,
             output_dir=output_dir,
             output_format=output_format,
             audio_config=AudioConfig(bitrate=bitrate),
-            title=title,
-            artist=artist,
-            cover_art=cover,
+            metadata=metadata,
             dry_run=dry_run,
         )
         processor = AudiobookProcessor(options)
@@ -250,25 +251,22 @@ def process(
         flac_files = processor.find_flac_files()
 
         # In interactive mode, prompt for missing metadata
-        if interactive and not dry_run and not (title and artist):
+        if interactive and not dry_run and not metadata.has_required_metadata():
             if ctx.obj.use_tui:
-                metadata = tui_module.prompt_metadata()
+                tui_metadata = tui_module.prompt_metadata()
+                metadata.title = metadata.title or tui_metadata.get("title")
+                metadata.artist = metadata.artist or tui_metadata.get("artist")
+                metadata.cover_art = metadata.cover_art or tui_metadata.get("cover")
             else:
-                metadata = {
-                    "title": click.prompt("Title", default=""),
-                    "artist": click.prompt("Artist/Author", default=""),
-                }
-                if click.confirm("Add cover art?", default=False):
+                metadata.title = metadata.title or click.prompt("Title", default="")
+                metadata.artist = metadata.artist or click.prompt("Artist/Author", default="")
+                if not metadata.cover_art and click.confirm("Add cover art?", default=False):
                     while True:
                         cover_path = click.prompt("Cover art path")
                         if Path(cover_path).is_file():
-                            metadata["cover"] = Path(cover_path)
+                            metadata.cover_art = Path(cover_path)
                             break
                         click.echo("File not found. Please try again.")
-
-            options.title = title or metadata.get("title")
-            options.artist = artist or metadata.get("artist")
-            options.cover_art = cover or metadata.get("cover")
 
         # Show summary and confirm
         if interactive:
@@ -311,34 +309,26 @@ def process(
                     progress.start_task("Converting audio")
                     if output_format != "aac":
                         aac_file = output_dir / "audiobook.aac"
-                        convert_to_aac(
-                            combined_flac, aac_file, config=options.audio_config
-                        )
+                        convert_to_aac(combined_flac, aac_file, config=options.audio_config)
                         output_file = output_dir / "audiobook.m4b"
                         if output_format == "m4b-ffmpeg":
                             create_m4b(
                                 aac_file,
                                 output_file,
                                 chapters_file=chapters_file,
-                                title=title,
-                                artist=artist,
-                                cover_art=cover,
+                                title=metadata.title,
+                                artist=metadata.artist,
+                                cover_art=metadata.cover_art,
                             )
                         else:  # m4b-mp4box
-                            create_m4b_mp4box(
-                                aac_file, output_file, chapters_file=chapters_file
-                            )
+                            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
                     else:
                         output_file = output_dir / "audiobook.aac"
-                        convert_to_aac(
-                            combined_flac, output_file, config=options.audio_config
-                        )
+                        convert_to_aac(combined_flac, output_file, config=options.audio_config)
                     progress.complete_task("Converting audio")
 
             if dry_run:
-                tui_module.console.print(
-                    "[green]Dry run completed successfully.[/green]"
-                )
+                tui_module.console.print("[green]Dry run completed successfully.[/green]")
             else:
                 tui_module.console.print(
                     f"[bold green]Successfully created audiobook:[/bold green] {output_file}"
@@ -363,7 +353,7 @@ def main():
     """Main entry point for the CLI."""
     try:
         logger.debug("Starting main function")
-        cli(obj={})
+        cli.main(args=None, prog_name=None)
     except Exception as e:
         logger.exception("Unexpected error in main function")
         raise click.ClickException(str(e))

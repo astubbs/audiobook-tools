@@ -165,7 +165,13 @@ def test_process_command_with_mocked_services(
 def test_combine_cue_command(
     mock_subprocess: tuple[Mock, Mock], sample_audiobook: Path, tmp_path: Path
 ):
-    """Test combining CUE sheets with mocked services."""
+    """Test combining CUE sheets with mocked services.
+
+    Args:
+        mock_subprocess: Mock for subprocess calls (unused in this test)
+        sample_audiobook: Path to the sample audiobook directory
+        tmp_path: Temporary directory for test output
+    """
     output_dir = tmp_path / "output"
     output_dir.mkdir(parents=True)
 

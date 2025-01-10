@@ -11,14 +11,18 @@ format to M4B audiobooks with chapters. It handles the complete workflow includi
 Example:
     ```python
     from pathlib import Path
-    from audiobook_tools.core.processor import AudiobookProcessor, ProcessingOptions
+    from audiobook_tools.core.processor import AudiobookProcessor, ProcessingOptions, AudiobookMetadata
 
+    metadata = AudiobookMetadata(
+        title="My Audiobook",
+        artist="Author Name"
+    )
+    
     options = ProcessingOptions(
         input_dir=Path("./audiobook"),
         output_dir=Path("./out"),
         output_format="m4b-ffmpeg",
-        title="My Audiobook",
-        artist="Author Name"
+        metadata=metadata
     )
     
     processor = AudiobookProcessor(options)
@@ -55,18 +59,27 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class AudiobookMetadata:
+    """Metadata for an audiobook."""
+
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    cover_art: Optional[Path] = None
+
+    def has_required_metadata(self) -> bool:
+        """Check if the required metadata fields are present."""
+        return bool(self.title and self.artist)
+
+
+@dataclass
 class ProcessingOptions:
     """Options for audiobook processing."""
 
     input_dir: Path
     output_dir: Path
     output_format: str = "m4b-ffmpeg"  # One of: m4b-ffmpeg, m4b-mp4box, aac
-    audio_config: AudioConfig = field(
-        default_factory=AudioConfig
-    )  # Use default_factory for mutable default
-    title: Optional[str] = None
-    artist: Optional[str] = None
-    cover_art: Optional[Path] = None
+    audio_config: AudioConfig = field(default_factory=AudioConfig)
+    metadata: AudiobookMetadata = field(default_factory=AudiobookMetadata)
     dry_run: bool = False
 
 
@@ -98,15 +111,11 @@ class AudiobookProcessor:
                 for f in self.options.input_dir.rglob("*.flac")
                 if "CD" in f.stem or "cd" in f.stem
             ],
-            key=lambda p: int(
-                "".join(filter(str.isdigit, p.stem))
-            ),  # Sort by CD number
+            key=lambda p: int("".join(filter(str.isdigit, p.stem))),  # Sort by CD number
         )
 
         if not flac_files:
-            raise AudioProcessingError(
-                f"No FLAC files found in {self.options.input_dir}"
-            )
+            raise AudioProcessingError(f"No FLAC files found in {self.options.input_dir}")
 
         return flac_files
 
@@ -164,9 +173,9 @@ class AudiobookProcessor:
                     aac_file,
                     output_file,
                     chapters_file=chapters_file,
-                    title=self.options.title,
-                    artist=self.options.artist,
-                    cover_art=self.options.cover_art,
+                    title=self.options.metadata.title,
+                    artist=self.options.metadata.artist,
+                    cover_art=self.options.metadata.cover_art,
                 )
                 return output_file
 
