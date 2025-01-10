@@ -17,6 +17,15 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.13"
+        cache: 'pip'
+    
+    - name: Cache Poetry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
     
     - name: Install system dependencies
       run: |
@@ -26,6 +35,10 @@ jobs:
     - name: Install Poetry
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
+    
+    - name: Update Poetry lock file
+      run: |
+        poetry lock
     
     - name: Install dependencies
       run: |
