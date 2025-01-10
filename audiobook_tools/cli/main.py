@@ -39,7 +39,7 @@ The CLI is built using Click and provides:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import click
 
@@ -116,54 +116,15 @@ def cli(ctx, debug: bool, tui: bool):
                             "Invalid return value from welcome screen"
                         )
                     logger.debug("Invoking process command with options: %s", options)
-                    return ctx.invoke(process, **options)
-                logger.debug("No options returned from welcome screen")
-                return
-            click.echo(ctx.get_help())
-            ctx.exit(1)
+                    ctx.invoke(process, **options)
+                else:
+                    logger.debug("No options returned from welcome screen")
+            else:
+                click.echo(ctx.get_help())
+                ctx.exit(1)
         except Exception as e:
             logger.exception("Error in welcome screen")
             raise click.ClickException(f"Welcome screen error: {str(e)}")
-
-
-@cli.command()
-@click.argument(
-    "input_dir",
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
-)
-@click.argument(
-    "output_dir", type=click.Path(file_okay=False, dir_okay=True, path_type=Path)
-)
-@click.pass_context
-def combine_cue(ctx, input_dir: Path, output_dir: Path):
-    """Combine multiple CUE sheets into a single file.
-
-    INPUT_DIR is the directory containing the audiobook files and CUE sheets.
-    OUTPUT_DIR is where the combined CUE file will be written.
-    """
-    try:
-        if ctx.obj.use_tui:
-            tui_module.display_header("Combining CUE Sheets")
-
-        processor = CueProcessor(input_dir, output_dir)
-
-        if ctx.obj.use_tui:
-            with tui_module.ProcessingProgress() as progress:
-                progress.start_task("Processing CUE files")
-                output_file = processor.process_directory()
-                progress.complete_task("Processing CUE files")
-
-            tui_module.console.print()
-            tui_module.console.print(
-                f"[bold green]Successfully created combined CUE file:[/bold green] {output_file}"
-            )
-        else:
-            output_file = processor.process_directory()
-            click.echo(f"Successfully created combined CUE file: {output_file}")
-
-    except CueProcessingError as e:
-        logger.error(str(e))
-        raise click.ClickException(str(e))
 
 
 @cli.command()
@@ -229,134 +190,169 @@ def process(
 
     INPUT_DIR is the directory containing the audiobook files and CUE sheets.
     """
+    audio_config = AudioConfig(bitrate=bitrate)
+    metadata = AudiobookMetadata(title=title, artist=artist, cover_art=cover)
+    processor = create_processor(
+        ProcessOptions(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            output_format=output_format,
+            audio_config=audio_config,
+            metadata=metadata,
+            dry_run=dry_run,
+            interactive=interactive,
+        )
+    )
+
     try:
         if ctx.obj.use_tui:
             tui_module.display_header("Processing Audiobook")
 
-        # Create metadata object
-        metadata = AudiobookMetadata(title=title, artist=artist, cover_art=cover)
-
-        # Create processor to find files
-        options = ProcessingOptions(
-            input_dir=input_dir,
-            output_dir=output_dir,
-            output_format=output_format,
-            audio_config=AudioConfig(bitrate=bitrate),
-            metadata=metadata,
-            dry_run=dry_run,
-        )
-        processor = AudiobookProcessor(options)
-
-        # Find FLAC files
         flac_files = processor.find_flac_files()
 
-        # In interactive mode, prompt for missing metadata
-        if interactive and not dry_run and not metadata.has_required_metadata():
-            if ctx.obj.use_tui:
-                tui_metadata = tui_module.prompt_metadata()
-                metadata.title = metadata.title or tui_metadata.get("title")
-                metadata.artist = metadata.artist or tui_metadata.get("artist")
-                metadata.cover_art = metadata.cover_art or tui_metadata.get("cover")
-            else:
-                metadata.title = metadata.title or click.prompt("Title", default="")
-                metadata.artist = metadata.artist or click.prompt(
-                    "Artist/Author", default=""
-                )
-                if not metadata.cover_art and click.confirm(
-                    "Add cover art?", default=False
-                ):
-                    while True:
-                        cover_path = click.prompt("Cover art path")
-                        if Path(cover_path).is_file():
-                            metadata.cover_art = Path(cover_path)
-                            break
-                        click.echo("File not found. Please try again.")
-
-        # Show summary and confirm
         if interactive:
-            if ctx.obj.use_tui:
-                if not tui_module.confirm_processing(flac_files, output_dir):
-                    tui_module.console.print("[yellow]Operation cancelled.[/yellow]")
-                    return
-            else:
-                click.echo("\nProcessing Summary:")
-                for i, file in enumerate(flac_files, 1):
-                    size = file.stat().st_size / (1024 * 1024)
-                    click.echo(f"{i}. {file} ({size:.1f} MB)")
-                click.echo(f"\nOutput directory: {output_dir}")
-                if not click.confirm("\nContinue with processing?"):
-                    click.echo("Operation cancelled.")
-                    return
+            if not confirm_processing(ctx, flac_files, output_dir):
+                return
 
-        if ctx.obj.use_tui:
-            # Process files with progress tracking
-            with tui_module.ProcessingProgress() as progress:
-                if dry_run:
-                    progress.start_task("Dry run")
-                    output_file = processor.process()
-                    progress.complete_task("Dry run")
-                else:
-                    # Merge FLAC files
-                    progress.start_task("Merging FLAC files")
-                    flac_files = processor.find_flac_files()
-                    combined_flac = output_dir / "combined.flac"
-                    merge_flac_files(flac_files, combined_flac)
-                    progress.complete_task("Merging FLAC files")
-
-                    # Process CUE sheets
-                    progress.start_task("Processing CUE sheets")
-                    cue_processor = CueProcessor(input_dir, output_dir)
-                    chapters_file = cue_processor.process_directory()
-                    progress.complete_task("Processing CUE sheets")
-
-                    # Convert audio
-                    progress.start_task("Converting audio")
-                    if output_format != "aac":
-                        aac_file = output_dir / "audiobook.aac"
-                        convert_to_aac(
-                            combined_flac, aac_file, config=options.audio_config
-                        )
-                        output_file = output_dir / "audiobook.m4b"
-                        if output_format == "m4b-ffmpeg":
-                            create_m4b(
-                                aac_file,
-                                output_file,
-                                chapters_file=chapters_file,
-                                metadata=metadata,
-                            )
-                        else:  # m4b-mp4box
-                            create_m4b_mp4box(
-                                aac_file, output_file, chapters_file=chapters_file
-                            )
-                    else:
-                        output_file = output_dir / "audiobook.aac"
-                        convert_to_aac(
-                            combined_flac, output_file, config=options.audio_config
-                        )
-                    progress.complete_task("Converting audio")
-
-            if dry_run:
-                tui_module.console.print(
-                    "[green]Dry run completed successfully.[/green]"
-                )
-            else:
-                tui_module.console.print(
-                    f"[bold green]Successfully created audiobook:[/bold green] {output_file}"
-                )
-        else:
-            # Process without progress tracking
-            if dry_run:
-                click.echo("Starting dry run...")
-                output_file = processor.process()
-                click.echo("Dry run completed successfully.")
-            else:
-                click.echo("Processing audiobook...")
-                output_file = processor.process()
-                click.echo(f"Successfully created audiobook: {output_file}")
+        process_audiobook(processor, processor.options, flac_files)
 
     except (AudioProcessingError, CueProcessingError) as e:
         logger.error(str(e))
         raise click.ClickException(str(e))
+
+
+@cli.command()
+@click.argument(
+    "input_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
+)
+@click.argument(
+    "output_dir", type=click.Path(file_okay=False, dir_okay=True, path_type=Path)
+)
+@click.pass_context
+def combine_cue(ctx, input_dir: Path, output_dir: Path):
+    """Combine multiple CUE sheets into a single file.
+
+    INPUT_DIR is the directory containing the audiobook files and CUE sheets.
+    OUTPUT_DIR is where the combined CUE file will be written.
+    """
+    try:
+        if ctx.obj.use_tui:
+            tui_module.display_header("Combining CUE Sheets")
+
+        processor = CueProcessor(input_dir, output_dir)
+
+        if ctx.obj.use_tui:
+            with tui_module.ProcessingProgress() as progress:
+                progress.start_task("Processing CUE files")
+                output_file = processor.process_directory()
+                progress.complete_task("Processing CUE files")
+
+            tui_module.console.print()
+            tui_module.console.print(
+                f"[bold green]Successfully created combined CUE file:[/bold green] {output_file}"
+            )
+        else:
+            output_file = processor.process_directory()
+            click.echo(f"Successfully created combined CUE file: {output_file}")
+
+    except CueProcessingError as e:
+        logger.error(str(e))
+        raise click.ClickException(str(e))
+
+
+@dataclass
+class ProcessOptions:
+    """Options for processing audiobooks, including input/output paths, format, and metadata."""
+
+    input_dir: Path
+    output_dir: Path
+    output_format: str
+    audio_config: AudioConfig
+    metadata: AudiobookMetadata
+    dry_run: bool
+    interactive: bool
+
+
+def create_processor(options: ProcessOptions) -> AudiobookProcessor:
+    """Create an AudiobookProcessor with the given processing options."""
+    return AudiobookProcessor(options)
+
+
+@click.pass_context
+def confirm_processing(ctx, flac_files: List[Path], output_dir: Path) -> bool:
+    """Confirm processing with the user, showing a summary of files and output directory."""
+    if ctx.obj.use_tui:
+        return tui_module.confirm_processing(flac_files, output_dir)
+    click.echo("\nProcessing Summary:")
+    for i, file in enumerate(flac_files, 1):
+        size = file.stat().st_size / (1024 * 1024)
+        click.echo(f"{i}. {file} ({size:.1f} MB)")
+    click.echo(f"\nOutput directory: {output_dir}")
+    return click.confirm("\nContinue with processing?")
+
+
+def process_audiobook(
+    processor: AudiobookProcessor, options: ProcessOptions, flac_files: List[Path]
+):
+    """Process the audiobook with or without progress tracking based on TUI usage."""
+    if options.interactive:
+        with tui_module.ProcessingProgress() as progress:
+            if options.dry_run:
+                progress.start_task("Dry run")
+                processor.process()
+                progress.complete_task("Dry run")
+            else:
+                process_with_progress(processor, options, flac_files, progress)
+    else:
+        if options.dry_run:
+            click.echo("Starting dry run...")
+            processor.process()
+            click.echo("Dry run completed successfully.")
+        else:
+            click.echo("Processing audiobook...")
+            processor.process()
+            click.echo(
+                f"Successfully created audiobook: {options.output_dir / 'audiobook.m4b'}"
+            )
+
+
+@click.pass_context
+def process_with_progress(
+    processor: AudiobookProcessor,
+    options: ProcessOptions,
+    flac_files: List[Path],
+    progress,
+):
+    """Process the audiobook with progress tracking, handling each step sequentially."""
+    progress.start_task("Merging FLAC files")
+    combined_flac = options.output_dir / "combined.flac"
+    merge_flac_files(flac_files, combined_flac)
+    progress.complete_task("Merging FLAC files")
+
+    progress.start_task("Processing CUE sheets")
+    cue_processor = CueProcessor(options.input_dir, options.output_dir)
+    chapters_file = cue_processor.process_directory()
+    progress.complete_task("Processing CUE sheets")
+
+    progress.start_task("Converting audio")
+    if options.output_format != "aac":
+        aac_file = options.output_dir / "audiobook.aac"
+        convert_to_aac(combined_flac, aac_file, config=options.audio_config)
+        output_file = options.output_dir / "audiobook.m4b"
+        if options.output_format == "m4b-ffmpeg":
+            create_m4b(
+                aac_file,
+                output_file,
+                chapters_file=chapters_file,
+                metadata=options.metadata,
+            )
+        else:
+            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
+    else:
+        output_file = options.output_dir / "audiobook.aac"
+        convert_to_aac(combined_flac, output_file, config=options.audio_config)
+    progress.complete_task("Converting audio")
 
 
 def main():
