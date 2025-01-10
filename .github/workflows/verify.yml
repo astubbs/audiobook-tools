@@ -9,16 +9,28 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    container: ubuntu:latest
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install Python and system dependencies
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+    
+    - name: Cache Poetry
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+    
+    - name: Install system dependencies
       run: |
-        apt-get update
-        apt-get install -y python3 python3-pip ffmpeg gpac sox curl
-        ln -s /usr/bin/python3 /usr/bin/python
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg gpac sox
     
     - name: Install Poetry
       run: |
