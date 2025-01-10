@@ -123,6 +123,9 @@ class CliOptions:
 
 
 @dataclass
+# pylint: disable=too-many-instance-attributes
+# This class needs many attributes to fully represent all CLI options.
+# Breaking it up would make the code less maintainable as these options are tightly coupled.
 class ProcessCommandOptions:
     """Options for the process command."""
 
@@ -215,6 +218,9 @@ class ProcessCommandOptions:
     help="Enable/disable interactive mode",
 )
 @click.pass_context
+# pylint: disable=too-many-arguments,too-many-locals
+# Click requires each CLI option to be a separate argument.
+# We mitigate this by immediately converting these into a proper options class.
 def process(
     ctx,
     input_dir: Path,
