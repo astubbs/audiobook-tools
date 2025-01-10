@@ -110,6 +110,7 @@ class CliOptions:
     metadata: AudiobookMetadata
     dry_run: bool
     interactive: bool
+    resume: bool
 
     def to_processing_options(self) -> ProcessingOptions:
         """Convert to ProcessingOptions for the processor."""
@@ -120,6 +121,7 @@ class CliOptions:
             audio_config=self.audio_config,
             metadata=self.metadata,
             dry_run=self.dry_run,
+            resume=self.resume,
         )
 
 
@@ -139,6 +141,7 @@ class ProcessCommandOptions:
     cover: Optional[Path]
     dry_run: bool
     interactive: bool
+    resume: bool
 
     def to_cli_options(self) -> CliOptions:
         """Convert to CliOptions."""
@@ -156,6 +159,7 @@ class ProcessCommandOptions:
             metadata=metadata,
             dry_run=self.dry_run,
             interactive=self.interactive,
+            resume=self.resume,
         )
 
 
@@ -218,6 +222,12 @@ class ProcessCommandOptions:
     default=True,
     help="Enable/disable interactive mode",
 )
+@click.option(
+    "--resume",
+    "-r",
+    is_flag=True,
+    help="Resume from existing intermediate files if present",
+)
 @click.pass_context
 # pylint: disable=too-many-arguments,too-many-locals
 # Click requires each CLI option to be a separate argument.
@@ -233,6 +243,7 @@ def process(
     cover: Optional[Path],
     dry_run: bool,
     interactive: bool,
+    resume: bool,
 ):
     """Process an audiobook directory into a single file with chapters.
 
@@ -248,6 +259,7 @@ def process(
         cover=cover,
         dry_run=dry_run,
         interactive=interactive,
+        resume=resume,
     )
     cli_options = cmd_options.to_cli_options()
     options = cli_options.to_processing_options()
@@ -369,10 +381,16 @@ def process_with_progress(
     progress.start_task(f"Merging {'MP3' if is_mp3 else 'FLAC'} files")
     if is_mp3:
         combined_audio = options.output_dir / "combined.mp3"
-        merge_mp3_files(audio_files, combined_audio)
+        if not (options.resume and combined_audio.exists()):
+            merge_mp3_files(audio_files, combined_audio)
+        else:
+            logger.info("Using existing combined MP3 file: %s", combined_audio)
     else:
         combined_audio = options.output_dir / "combined.flac"
-        merge_flac_files(audio_files, combined_audio)
+        if not (options.resume and combined_audio.exists()):
+            merge_flac_files(audio_files, combined_audio)
+        else:
+            logger.info("Using existing combined FLAC file: %s", combined_audio)
     progress.complete_task(f"Merging {'MP3' if is_mp3 else 'FLAC'} files")
 
     # Process chapters
@@ -388,7 +406,10 @@ def process_with_progress(
     progress.start_task("Converting audio")
     if options.output_format != "aac":
         aac_file = options.output_dir / "audiobook.aac"
-        convert_to_aac(combined_audio, aac_file, config=options.audio_config)
+        if not (options.resume and aac_file.exists()):
+            convert_to_aac(combined_audio, aac_file, config=options.audio_config)
+        else:
+            logger.info("Using existing AAC file: %s", aac_file)
         output_file = options.output_dir / "audiobook.m4b"
         if options.output_format == "m4b-ffmpeg":
             create_m4b(

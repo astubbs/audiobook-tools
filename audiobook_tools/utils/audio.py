@@ -151,7 +151,8 @@ def create_m4b(
 
         # Add chapters if provided
         if chapters_file:
-            cmd.extend(["-i", str(chapters_file), "-map_metadata", "1"])
+            cmd.extend(["-i", str(chapters_file)])  # Add chapters file as second input
+            cmd.extend(["-map_metadata", "1"])  # Map metadata from second input
 
         # Add metadata if provided
         if metadata:
@@ -162,7 +163,8 @@ def create_m4b(
             if metadata.cover_art:
                 cmd.extend(["-i", str(metadata.cover_art), "-map", "2"])
 
-        # Output options
+        # Map audio stream and set output options
+        cmd.extend(["-map", "0:a"])  # Map audio from first input
         cmd.extend(["-c", "copy", "-y", str(output_file)])
 
         # Run without capturing stderr to show progress

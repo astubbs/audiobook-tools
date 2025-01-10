@@ -76,6 +76,7 @@ class ProcessingOptions:
     audio_config: AudioConfig = field(default_factory=AudioConfig)
     metadata: AudiobookMetadata = field(default_factory=AudiobookMetadata)
     dry_run: bool = False
+    resume: bool = False  # Whether to resume from existing intermediate files
 
 
 class AudiobookProcessor:
@@ -239,15 +240,19 @@ class AudiobookProcessor:
 
         # Second pass: write chapters with cumulative timestamps
         with open(chapters_file, "w", encoding="utf-8") as f:
+            f.write(";FFMETADATA1\n")  # FFmpeg metadata header
             current_time = 0
-            for mp3_file, duration in zip(mp3_files, durations):
+            for i, (mp3_file, duration) in enumerate(zip(mp3_files, durations), 1):
                 match = pattern.search(str(mp3_file))
                 if not match:
                     continue
 
                 # Write chapter marker with cumulative timestamp
-                f.write(f"{self._format_timestamp(current_time)} {match.group(1)}\n")
+                f.write("\n[CHAPTER]\nTIMEBASE=1/1\n")
+                f.write(f"START={current_time}\n")
                 current_time += duration
+                f.write(f"END={current_time}\n")
+                f.write(f"title={match.group(1)}\n")
 
         return chapters_file
 
@@ -285,8 +290,11 @@ class AudiobookProcessor:
         if is_mp3:
             # For MP3 files, merge them and extract chapters from filenames
             combined_audio = self.options.output_dir / "combined.mp3"
-            logger.info("Merging MP3 files...")
-            merge_mp3_files(audio_files, combined_audio)
+            if not (self.options.resume and combined_audio.exists()):
+                logger.info("Merging MP3 files...")
+                merge_mp3_files(audio_files, combined_audio)
+            else:
+                logger.info("Using existing combined MP3 file: %s", combined_audio)
 
             # Extract chapters from filenames
             logger.info("Processing chapter information from filenames...")
@@ -294,8 +302,11 @@ class AudiobookProcessor:
         else:
             # For FLAC files, use existing merge and CUE processing
             combined_audio = self.options.output_dir / "combined.flac"
-            logger.info("Merging FLAC files...")
-            merge_flac_files(audio_files, combined_audio)
+            if not (self.options.resume and combined_audio.exists()):
+                logger.info("Merging FLAC files...")
+                merge_flac_files(audio_files, combined_audio)
+            else:
+                logger.info("Using existing combined FLAC file: %s", combined_audio)
 
             # Process CUE sheets
             logger.info("Processing CUE sheets...")
@@ -308,7 +319,10 @@ class AudiobookProcessor:
         if self.options.output_format != "aac":
             logger.info("Converting to AAC...")
             aac_file = self.options.output_dir / "audiobook.aac"
-            convert_to_aac(combined_audio, aac_file, config=self.options.audio_config)
+            if not (self.options.resume and aac_file.exists()):
+                convert_to_aac(combined_audio, aac_file, config=self.options.audio_config)
+            else:
+                logger.info("Using existing AAC file: %s", aac_file)
 
             # Create M4B with chapters
             logger.info("Creating %s...", self.options.output_format)

@@ -139,24 +139,48 @@ def test_process_mp3_files(
     assert chapters_file.exists()
     chapter_content = chapters_file.read_text().splitlines()
 
-    # Should have exactly 5 chapters (2 from CD1 + 3 from CD2, malformed file skipped)
-    assert len(chapter_content) == 5, "Malformed file should be skipped"
+    # Should have header and 5 chapters (2 from CD1 + 3 from CD2, malformed file skipped)
+    assert len(chapter_content) > 5, "Should have header and chapters"
+    assert chapter_content[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
 
-    # Verify chapter timestamps are cumulative across CDs
-    # CD1 Chapter 1: 00:00:00 (start)
-    # CD1 Chapter 2: 00:30:00 (after 30 min intro)
-    # CD2 Chapter 3: 01:15:00 (after 45 min chapter)
-    # CD2 Chapter 4: 01:35:00 (after 20 min chapter)
-    # CD2 Chapter 5: 01:55:00 (after 20 min chapter)
-    expected_times = [
-        "00:00:00 Chapter 1 - Introduction",
-        "00:30:00 Chapter 2",
-        "01:15:00 Chapter 3",
-        "01:35:00 Chapter 4",
-        "01:55:00 Chapter 5",
+    # Verify chapter content
+    # CD1 Chapter 1: 0 to 1800 (30 min)
+    # CD1 Chapter 2: 1800 to 4500 (45 min)
+    # CD2 Chapter 3: 4500 to 5700 (20 min)
+    # CD2 Chapter 4: 5700 to 6900 (20 min)
+    # CD2 Chapter 5: 6900 to 8100 (20 min)
+    expected_chapters = [
+        ("Chapter 1 - Introduction", 0, 1800),
+        ("Chapter 2", 1800, 4500),
+        ("Chapter 3", 4500, 5700),
+        ("Chapter 4", 5700, 6900),
+        ("Chapter 5", 6900, 8100),
     ]
 
-    assert chapter_content == expected_times
+    chapter_idx = 0
+    for i, line in enumerate(chapter_content):
+        if line == "[CHAPTER]":
+            title = None
+            start = None
+            end = None
+            for j in range(i + 1, min(i + 5, len(chapter_content))):
+                if chapter_content[j].startswith("TIMEBASE="):
+                    assert chapter_content[j] == "TIMEBASE=1/1"
+                elif chapter_content[j].startswith("START="):
+                    start = int(chapter_content[j].split("=")[1])
+                elif chapter_content[j].startswith("END="):
+                    end = int(chapter_content[j].split("=")[1])
+                elif chapter_content[j].startswith("title="):
+                    title = chapter_content[j].split("=")[1]
+
+            if title and start is not None and end is not None:
+                expected_title, expected_start, expected_end = expected_chapters[chapter_idx]
+                assert title == expected_title
+                assert start == expected_start
+                assert end == expected_end
+                chapter_idx += 1
+
+    assert chapter_idx == len(expected_chapters), "All chapters should be found"
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"
@@ -274,24 +298,43 @@ def test_process_flat_mp3_files(
     assert chapters_file.exists()
     chapter_content = chapters_file.read_text().splitlines()
 
-    # Should have 16 chapters
-    assert len(chapter_content) == 16
+    # Should have header and 16 chapters
+    assert len(chapter_content) > 16, "Should have header and chapters"
+    assert chapter_content[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
 
-    # Each chapter should be 15 minutes after the previous one
-    expected_times = []
-    current_time = 0
+    # Each chapter should be 15 minutes (900 seconds) after the previous one
     chapter_numbers = [1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 7]  # From filenames
     chapter_names = ["Chapter 1 - Introduction"] + [
         f"Chapter {num}" for num in chapter_numbers[1:]
     ]
-    for chapter_name in chapter_names:
-        hours = current_time // 3600
-        minutes = (current_time % 3600) // 60
-        seconds = current_time % 60
-        expected_times.append(f"{hours:02d}:{minutes:02d}:{seconds:02d} {chapter_name}")
-        current_time += 15 * 60  # Add 15 minutes
 
-    assert chapter_content == expected_times
+    chapter_idx = 0
+    for i, line in enumerate(chapter_content):
+        if line == "[CHAPTER]":
+            title = None
+            start = None
+            end = None
+            for j in range(i + 1, min(i + 5, len(chapter_content))):
+                if chapter_content[j].startswith("TIMEBASE="):
+                    assert chapter_content[j] == "TIMEBASE=1/1"
+                elif chapter_content[j].startswith("START="):
+                    start = int(chapter_content[j].split("=")[1])
+                elif chapter_content[j].startswith("END="):
+                    end = int(chapter_content[j].split("=")[1])
+                elif chapter_content[j].startswith("title="):
+                    title = chapter_content[j].split("=")[1]
+
+            if title and start is not None and end is not None:
+                expected_title = chapter_names[chapter_idx]
+                expected_start = chapter_idx * 900  # 15 minutes = 900 seconds
+                expected_end = (chapter_idx + 1) * 900
+
+                assert title == expected_title
+                assert start == expected_start
+                assert end == expected_end
+                chapter_idx += 1
+
+    assert chapter_idx == len(chapter_names), "All chapters should be found"
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"
