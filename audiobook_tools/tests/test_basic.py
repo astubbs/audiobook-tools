@@ -1,11 +1,9 @@
 """Basic test module for audiobook tools."""
 
 import json
-import os
 from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
-import click
 import pytest
 from click.testing import CliRunner
 
@@ -42,15 +40,15 @@ def test_cli_no_args(mock_display_welcome):
     mock_display_welcome.assert_called_once()
 
 
-@pytest.fixture
-def mock_subprocess():
+@pytest.fixture(name="mock_subprocess")
+def fixture_mock_subprocess():
     """Mock subprocess.run for external commands."""
     patches = [
         patch("audiobook_tools.utils.audio.subprocess.run"),
-        patch("audiobook_tools.core.cue.subprocess.run")
+        patch("audiobook_tools.core.cue.subprocess.run"),
     ]
 
-    def side_effect(cmd, *args, **kwargs):
+    def side_effect(cmd, *_args, **_kwargs):
         mock_result = Mock()
         mock_result.returncode = 0
         mock_result.stderr = ""
@@ -60,11 +58,9 @@ def mock_subprocess():
         elif cmd[0] == "ffmpeg":
             mock_result.stdout = ""
         elif cmd[0] == "ffprobe":
-            mock_result.stdout = json.dumps({
-                "format": {
-                    "duration": "300.0"  # 5 minutes
-                }
-            })
+            mock_result.stdout = json.dumps(
+                {"format": {"duration": "300.0"}}
+            )  # 5 minutes
         else:
             mock_result.stdout = ""
 
@@ -78,12 +74,12 @@ def mock_subprocess():
         yield mock_run_audio, mock_run_cue
 
 
-@pytest.fixture
-def sample_audiobook(tmp_path):
+@pytest.fixture(name="sample_audiobook")
+def fixture_sample_audiobook(tmp_path: Path) -> Path:
     """Create a sample audiobook directory structure."""
     book_dir = tmp_path / "Test Book"
     book_dir.mkdir()
-    
+
     # Create CD1 directory with files
     cd1_dir = book_dir / "CD1"
     cd1_dir.mkdir()
@@ -94,7 +90,7 @@ def sample_audiobook(tmp_path):
         '    TITLE "Chapter 1"\n'
         "    INDEX 01 00:00:00"
     )
-    
+
     # Create CD2 directory with files
     cd2_dir = book_dir / "CD2"
     cd2_dir.mkdir()
@@ -105,16 +101,18 @@ def sample_audiobook(tmp_path):
         '    TITLE "Chapter 2"\n'
         "    INDEX 01 00:00:00"
     )
-    
+
     return book_dir
 
 
-def test_process_command_with_mocked_services(mock_subprocess, sample_audiobook, tmp_path):
+def test_process_command_with_mocked_services(
+    mock_subprocess: tuple[Mock, Mock], sample_audiobook: Path, tmp_path: Path
+):
     """Test processing an audiobook with mocked external services."""
     mock_run_audio, mock_run_cue = mock_subprocess
     output_dir = tmp_path / "output"
     output_dir.mkdir(parents=True)
-    
+
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -123,14 +121,18 @@ def test_process_command_with_mocked_services(mock_subprocess, sample_audiobook,
             "--debug",  # Enable debug logging
             "process",
             str(sample_audiobook),
-            "--output-dir", str(output_dir),
-            "--output-format", "m4b-ffmpeg",
-            "--title", "Test Book",
-            "--artist", "Test Author",
+            "--output-dir",
+            str(output_dir),
+            "--output-format",
+            "m4b-ffmpeg",
+            "--title",
+            "Test Book",
+            "--artist",
+            "Test Author",
             "--no-interactive",  # Disable interactive prompts
-        ]
+        ],
     )
-    
+
     # Print error output if the command failed
     if result.exit_code != 0:
         print(f"\nCommand failed with exit code {result.exit_code}")
@@ -138,32 +140,35 @@ def test_process_command_with_mocked_services(mock_subprocess, sample_audiobook,
         if result.exception:
             print("Exception:", result.exception)
             print("Traceback:", result.exc_info)
-    
+
     assert result.exit_code == 0, f"Command failed with output:\n{result.output}"
-    
+
     # Verify external commands were called
     audio_calls = mock_run_audio.call_args_list
     cue_calls = mock_run_cue.call_args_list
-    
+
     # Get all commands called
     audio_commands = [call.args[0][0] for call in audio_calls]
     cue_commands = [call.args[0][0] for call in cue_calls]
     all_commands = audio_commands + cue_commands
-    
+
     # Check that the expected commands were called
     assert "sox" in all_commands  # For merging FLAC files
     assert "ffmpeg" in all_commands  # For converting to AAC/M4B
-    
+
     # Verify the order of operations
-    assert len(audio_calls) + len(cue_calls) >= 3  # At least: sox merge, ffmpeg convert, ffmpeg create m4b
+    assert (
+        len(audio_calls) + len(cue_calls) >= 3
+    )  # At least: sox merge, ffmpeg convert, ffmpeg create m4b
 
 
-def test_combine_cue_command(mock_subprocess, sample_audiobook, tmp_path):
+def test_combine_cue_command(
+    mock_subprocess: tuple[Mock, Mock], sample_audiobook: Path, tmp_path: Path
+):
     """Test combining CUE sheets with mocked services."""
-    mock_run_audio, mock_run_cue = mock_subprocess
     output_dir = tmp_path / "output"
     output_dir.mkdir(parents=True)
-    
+
     runner = CliRunner()
     result = runner.invoke(
         cli,
@@ -173,9 +178,9 @@ def test_combine_cue_command(mock_subprocess, sample_audiobook, tmp_path):
             "combine-cue",
             str(sample_audiobook),
             str(output_dir),
-        ]
+        ],
     )
-    
+
     # Print error output if the command failed
     if result.exit_code != 0:
         print(f"\nCommand failed with exit code {result.exit_code}")
@@ -183,13 +188,13 @@ def test_combine_cue_command(mock_subprocess, sample_audiobook, tmp_path):
         if result.exception:
             print("Exception:", result.exception)
             print("Traceback:", result.exc_info)
-    
+
     assert result.exit_code == 0, f"Command failed with output:\n{result.output}"
-    
+
     # Verify the combined CUE file was created
     combined_cue = output_dir / "combined.cue"
     assert combined_cue.exists()
-    
+
     # Check the content of the combined CUE file
     content = combined_cue.read_text()
     assert 'FILE "CD1.flac" WAVE' in content

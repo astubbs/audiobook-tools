@@ -61,7 +61,9 @@ class ProcessingOptions:
     input_dir: Path
     output_dir: Path
     output_format: str = "m4b-ffmpeg"  # One of: m4b-ffmpeg, m4b-mp4box, aac
-    audio_config: AudioConfig = field(default_factory=AudioConfig)  # Use default_factory for mutable default
+    audio_config: AudioConfig = field(
+        default_factory=AudioConfig
+    )  # Use default_factory for mutable default
     title: Optional[str] = None
     artist: Optional[str] = None
     cover_art: Optional[Path] = None

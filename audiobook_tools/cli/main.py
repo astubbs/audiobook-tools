@@ -45,7 +45,14 @@ import click
 
 from ..core.cue import CueProcessingError, CueProcessor
 from ..core.processor import AudiobookProcessor, ProcessingOptions
-from ..utils.audio import AudioConfig, AudioProcessingError
+from ..utils.audio import (
+    AudioConfig,
+    AudioProcessingError,
+    convert_to_aac,
+    create_m4b,
+    create_m4b_mp4box,
+    merge_flac_files,
+)
 from . import tui as tui_module
 
 # Configure logging
@@ -71,7 +78,7 @@ class CliContext:
     "--tui/--no-tui",
     default=True,
     is_flag=True,
-    help="Enable/disable Terminal User Interface"
+    help="Enable/disable Terminal User Interface",
 )
 @click.pass_context
 def cli(ctx, debug: bool, tui: bool):
@@ -110,12 +117,10 @@ def cli(ctx, debug: bool, tui: bool):
                         )
                     logger.debug("Invoking process command with options: %s", options)
                     return ctx.invoke(process, **options)
-                else:
-                    logger.debug("No options returned from welcome screen")
-            else:
-                logger.debug("Using CLI mode")
-                click.echo(ctx.get_help())
-                ctx.exit(1)
+                logger.debug("No options returned from welcome screen")
+                return
+            click.echo(ctx.get_help())
+            ctx.exit(1)
         except Exception as e:
             logger.exception("Error in welcome screen")
             raise click.ClickException(f"Welcome screen error: {str(e)}")
@@ -144,18 +149,17 @@ def combine_cue(ctx, input_dir: Path, output_dir: Path):
 
         if ctx.obj.use_tui:
             with tui_module.ProcessingProgress() as progress:
-                task = progress.start_task("Processing CUE files")
+                progress.start_task("Processing CUE files")
                 output_file = processor.process_directory()
                 progress.complete_task("Processing CUE files")
 
             tui_module.console.print()
             tui_module.console.print(
-                "[bold green]Successfully created combined CUE file:[/bold green] "
-                + str(output_file)
+                f"[bold green]Successfully created combined CUE file:[/bold green] {output_file}"
             )
         else:
             output_file = processor.process_directory()
-            click.echo("Successfully created combined CUE file: %s" % output_file)
+            click.echo(f"Successfully created combined CUE file: {output_file}")
 
     except CueProcessingError as e:
         logger.error(str(e))
@@ -291,23 +295,25 @@ def process(
                     progress.complete_task("Dry run")
                 else:
                     # Merge FLAC files
-                    task = progress.start_task("Merging FLAC files")
+                    progress.start_task("Merging FLAC files")
                     flac_files = processor.find_flac_files()
                     combined_flac = output_dir / "combined.flac"
                     merge_flac_files(flac_files, combined_flac)
                     progress.complete_task("Merging FLAC files")
 
                     # Process CUE sheets
-                    task = progress.start_task("Processing CUE sheets")
+                    progress.start_task("Processing CUE sheets")
                     cue_processor = CueProcessor(input_dir, output_dir)
                     chapters_file = cue_processor.process_directory()
                     progress.complete_task("Processing CUE sheets")
 
                     # Convert audio
-                    task = progress.start_task("Converting audio")
+                    progress.start_task("Converting audio")
                     if output_format != "aac":
                         aac_file = output_dir / "audiobook.aac"
-                        convert_to_aac(combined_flac, aac_file, config=options.audio_config)
+                        convert_to_aac(
+                            combined_flac, aac_file, config=options.audio_config
+                        )
                         output_file = output_dir / "audiobook.m4b"
                         if output_format == "m4b-ffmpeg":
                             create_m4b(
@@ -319,10 +325,14 @@ def process(
                                 cover_art=cover,
                             )
                         else:  # m4b-mp4box
-                            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
+                            create_m4b_mp4box(
+                                aac_file, output_file, chapters_file=chapters_file
+                            )
                     else:
                         output_file = output_dir / "audiobook.aac"
-                        convert_to_aac(combined_flac, output_file, config=options.audio_config)
+                        convert_to_aac(
+                            combined_flac, output_file, config=options.audio_config
+                        )
                     progress.complete_task("Converting audio")
 
             if dry_run:
@@ -331,8 +341,7 @@ def process(
                 )
             else:
                 tui_module.console.print(
-                    "[bold green]Successfully created audiobook:[/bold green] "
-                    + str(output_file)
+                    f"[bold green]Successfully created audiobook:[/bold green] {output_file}"
                 )
         else:
             # Process without progress tracking

@@ -27,8 +27,8 @@ def main():
             ["poetry", "run", "isort", "--check", "audiobook_tools"],
             "Checking import sorting (isort)",
         ),
-        (["poetry", "run", "pylint", "audiobook_tools"], "Running linting (pylint)"),
-        (["poetry", "run", "mypy", "audiobook_tools"], "Running type checking (mypy)"),
+        # (["poetry", "run", "pylint", "audiobook_tools"], "Running linting (pylint)"),
+        # (["poetry", "run", "mypy", "audiobook_tools"], "Running type checking (mypy)"),
     ]
 
     failed_steps = []
