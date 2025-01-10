@@ -11,6 +11,39 @@ from audiobook_tools.core.processor import AudiobookProcessor, ProcessingOptions
 from audiobook_tools.utils.audio import AudioConfig, AudioProcessingError
 
 
+def verify_chapters(chapter_content, expected_chapters):
+    """Verify chapter content matches expected chapters.
+
+    Args:
+        chapter_content: List of lines from the chapters file
+        expected_chapters: List of tuples (title, start, end) for expected chapters
+    """
+    chapter_idx = 0
+    for i, line in enumerate(chapter_content):
+        if line == "[CHAPTER]":
+            title, start, end = None, None, None
+            for j in range(i + 1, min(i + 5, len(chapter_content))):
+                if chapter_content[j].startswith("TIMEBASE="):
+                    assert chapter_content[j] == "TIMEBASE=1/1"
+                elif chapter_content[j].startswith("START="):
+                    start = int(chapter_content[j].split("=")[1])
+                elif chapter_content[j].startswith("END="):
+                    end = int(chapter_content[j].split("=")[1])
+                elif chapter_content[j].startswith("title="):
+                    title = chapter_content[j].split("=")[1]
+
+            if title and start is not None and end is not None:
+                expected_title, expected_start, expected_end = expected_chapters[
+                    chapter_idx
+                ]
+                assert title == expected_title
+                assert start == expected_start
+                assert end == expected_end
+                chapter_idx += 1
+
+    assert chapter_idx == len(expected_chapters), "All chapters should be found"
+
+
 @pytest.fixture
 def sample_mp3_files(tmp_path: Path) -> Path:  # pylint: disable=redefined-outer-name
     """Create a sample directory with MP3 files that have chapter information in filenames."""
@@ -192,32 +225,7 @@ title=Chapter 5 (1)"""
         ("Chapter 5 (1)", 6900, 8100),
     ]
 
-    chapter_idx = 0
-    for i, line in enumerate(chapter_content):
-        if line == "[CHAPTER]":
-            title = None
-            start = None
-            end = None
-            for j in range(i + 1, min(i + 5, len(chapter_content))):
-                if chapter_content[j].startswith("TIMEBASE="):
-                    assert chapter_content[j] == "TIMEBASE=1/1"
-                elif chapter_content[j].startswith("START="):
-                    start = int(chapter_content[j].split("=")[1])
-                elif chapter_content[j].startswith("END="):
-                    end = int(chapter_content[j].split("=")[1])
-                elif chapter_content[j].startswith("title="):
-                    title = chapter_content[j].split("=")[1]
-
-            if title and start is not None and end is not None:
-                expected_title, expected_start, expected_end = expected_chapters[
-                    chapter_idx
-                ]
-                assert title == expected_title
-                assert start == expected_start
-                assert end == expected_end
-                chapter_idx += 1
-
-    assert chapter_idx == len(expected_chapters), "All chapters should be found"
+    verify_chapters(chapter_content, expected_chapters)
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"
@@ -449,34 +457,7 @@ title=Chapter 7 (2)"""
         ("Chapter 7 (2)", 13500, 14400),
     ]
 
-    chapter_idx = 0
-    for i, line in enumerate(chapter_content):
-        if line == "[CHAPTER]":
-            title = None
-            start = None
-            end = None
-            for j in range(i + 1, min(i + 5, len(chapter_content))):
-                if chapter_content[j].startswith("TIMEBASE="):
-                    assert chapter_content[j] == "TIMEBASE=1/1"
-                elif chapter_content[j].startswith("START="):
-                    start = int(chapter_content[j].split("=")[1])
-                elif chapter_content[j].startswith("END="):
-                    end = int(chapter_content[j].split("=")[1])
-                elif chapter_content[j].startswith("title="):
-                    title = chapter_content[j].split("=")[1]
-
-            if title and start is not None and end is not None:
-                expected_title, expected_start, expected_end = expected_chapters[
-                    chapter_idx
-                ]
-                assert title == expected_title
-                assert start == expected_start
-                assert end == expected_end
-                chapter_idx += 1
-
-    assert chapter_idx == len(
-        expected_chapters
-    ), "All consolidated chapters should be found"
+    verify_chapters(chapter_content, expected_chapters)
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"

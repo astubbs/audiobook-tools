@@ -244,13 +244,13 @@ class ProcessingProgress:
             )
             time.sleep(0.5)  # Give user time to see completion
 
-    def fail_task(self, name: str, error: str) -> None:
+    def fail_task(self, name: str) -> None:
         """Mark a task as failed."""
         if name in self.tasks:
             self.update(
                 self.tasks[name],
                 completed=100,
-                description=f"[bold red]{name} ✗ ({error})",
+                description=f"[bold red]{name} ✗",
             )
 
 
@@ -349,7 +349,7 @@ class AudiobookTUI:
                         processor.process()
                     break
 
-                except AudioProcessingError as error:
+                except AudioProcessingError:
                     if not handle_no_audio_files(input_dir):
                         break
 

@@ -252,13 +252,11 @@ class AudiobookProcessor:
                 chapter_counts[chapter_title] += 1
                 display_title = f"{chapter_title} ({chapter_counts[chapter_title]})"
 
-            chapters.append(
-                {
-                    "title": display_title,
-                    "start": current_time,
-                    "end": current_time + duration,
-                }
-            )
+            chapters.append({
+                "title": display_title,
+                "start": current_time,
+                "end": current_time + duration
+            })
             current_time += duration
 
         # Write chapters file
@@ -348,9 +346,9 @@ class AudiobookProcessor:
             else:
                 logger.info("Using existing AAC file: %s", aac_file)
 
-            # Create M4B with chapters
-            logger.info("Creating %s...", self.options.output_format)
-            output_file = self.options.output_dir / "audiobook.m4b"
+            # Create output filename in the format 'author: title'
+            output_filename = f"{self.options.metadata.artist}: {self.options.metadata.title}.m4b"
+            output_file = self.options.output_dir / output_filename
 
             if self.options.output_format == "m4b-ffmpeg":
                 create_m4b(

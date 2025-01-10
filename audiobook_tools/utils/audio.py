@@ -115,13 +115,7 @@ def convert_to_aac(
             str(output_file),
         ]
         # Run without capturing stdout to show progress
-        result = subprocess.run(
-            cmd,
-            check=True,
-            stdout=subprocess.PIPE,  # Still capture stdout for error handling
-            stderr=None,  # Let stderr through for progress
-            text=True,
-        )
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=None, text=True)
     except subprocess.CalledProcessError as e:
         raise AudioProcessingError(
             f"Failed to convert to AAC: {e.stderr if hasattr(e, 'stderr') else str(e)}"
@@ -170,13 +164,7 @@ def create_m4b(
         cmd.extend(["-c", "copy", "-y", str(output_file)])
 
         # Run without capturing stderr to show progress
-        result = subprocess.run(
-            cmd,
-            check=True,
-            stdout=subprocess.PIPE,  # Still capture stdout for error handling
-            stderr=None,  # Let stderr through for progress
-            text=True,
-        )
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=None, text=True)
     except subprocess.CalledProcessError as e:
         raise AudioProcessingError(
             f"Failed to create M4B file: {e.stderr if hasattr(e, 'stderr') else str(e)}"
@@ -271,13 +259,7 @@ def merge_mp3_files(input_files: List[Path], output_file: Path) -> None:
         ]
 
         # Run without capturing stderr to show progress
-        result = subprocess.run(
-            cmd,
-            check=True,
-            stdout=subprocess.PIPE,  # Still capture stdout for error handling
-            stderr=None,  # Let stderr through for progress
-            text=True,
-        )
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=None, text=True)
 
         # Clean up concat file
         concat_file.unlink()
