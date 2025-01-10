@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+import questionary
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
@@ -13,6 +14,50 @@ from rich.table import Table
 
 console = Console()
 logger = logging.getLogger(__name__)
+
+
+def browse_directory(message: str, default: str = ".") -> Optional[Path]:
+    """Browse for a directory using questionary's path autocomplete.
+    
+    Args:
+        message: The prompt message to display
+        default: The default directory to start in
+    
+    Returns:
+        Selected directory path or None if cancelled
+    """
+    try:
+        # Ensure default directory exists
+        current = Path(default).resolve()
+        current.mkdir(parents=True, exist_ok=True)
+        
+        # Show current directory contents
+        try:
+            dirs = [d for d in current.iterdir() if d.is_dir()]
+            if dirs:
+                console.print("\n[dim]Available directories:[/dim]")
+                for d in sorted(dirs):
+                    console.print(f"[dim]  {d.name}/[/dim]")
+                console.print()
+        except OSError:
+            # Handle case where directory listing fails
+            pass
+
+        console.print("[dim]Navigation: Use Tab to autocomplete, ↑/↓ to view history, Enter to select[/dim]")
+        path = questionary.path(
+            message,
+            default=str(current),
+            only_directories=True,
+            validate=lambda p: True  # Allow non-existent directories
+        ).ask()
+        
+        if path:
+            selected = Path(path)
+            selected.mkdir(parents=True, exist_ok=True)
+            return selected
+        return None
+    except KeyboardInterrupt:
+        return None
 
 
 def display_welcome():
@@ -27,13 +72,16 @@ def display_welcome():
     ), justify="center")
     console.print()
 
-    # Get input directory
+    # Get input directory with browser
     while True:
-        input_dir = Path(Prompt.ask(
-            "[bold]Enter the path to your audiobook directory[/bold]\n"
+        input_dir = browse_directory(
+            "[bold]Select your audiobook directory[/bold]\n"
             "This should be the directory containing your CD folders with FLAC and CUE files"
-        ))
+        )
         
+        if input_dir is None:  # User cancelled
+            return None
+            
         if not input_dir.exists():
             console.print("[red]Directory not found. Please try again.[/red]")
             continue
@@ -50,11 +98,15 @@ def display_welcome():
     # Show found files
     display_files(flac_files, "Found Audio Files")
 
-    # Get output directory
-    output_dir = Path(Prompt.ask(
-        "[bold]Enter output directory[/bold]",
-        default=str(input_dir.parent / "out")
-    ))
+    # Get output directory with browser
+    default_output = str(input_dir.parent / "out")
+    output_dir = browse_directory(
+        "[bold]Select output directory[/bold]",
+        default=default_output
+    )
+    
+    if output_dir is None:  # User cancelled
+        return None
 
     # Get format
     format_choices = {
@@ -187,11 +239,17 @@ def prompt_metadata() -> dict:
 
     if Prompt.ask("Add cover art?", choices=["y", "n"], default="n") == "y":
         while True:
-            cover_path = Prompt.ask("Cover art path")
-            if Path(cover_path).is_file():
+            cover_path = questionary.path(
+                "Select cover art image",
+                validate=lambda p: Path(p).is_file() or "Please select a valid file"
+            ).ask()
+            
+            if cover_path:
                 metadata["cover"] = Path(cover_path)
                 break
-            console.print("[red]File not found. Please try again.[/red]")
+            else:  # User cancelled
+                if not Confirm.ask("Try another file?"):
+                    break
 
     console.print()
     return metadata
