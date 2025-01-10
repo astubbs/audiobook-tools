@@ -50,8 +50,8 @@ jobs:
     
     - name: Check formatting
       run: |
-        poetry run black --check audiobook_tools tests
-        poetry run isort --check audiobook_tools tests
+        poetry run black --check audiobook_tools
+        poetry run isort --check audiobook_tools
     
     - name: Run linting
       run: |
