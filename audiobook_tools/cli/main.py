@@ -1,39 +1,10 @@
 """Command-line interface for audiobook tools.
 
-This module provides the command-line interface for the audiobook tools package.
-It offers two main commands:
-
-1. process: Convert an audiobook directory to M4B/AAC format
-   ```bash
-   # Basic usage
-   audiobook-tools process ./audiobook-dir
-   
-   # Advanced usage with all options
-   audiobook-tools process ./audiobook-dir \\
-       --output-dir ./out \\
-       --output-format m4b-ffmpeg \\
-       --bitrate 64k \\
-       --title "Book Title" \\
-       --artist "Author Name" \\
-       --cover cover.jpg
-   ```
-
-2. combine-cue: Just combine CUE sheets (useful for manual processing)
-   ```bash
-   audiobook-tools combine-cue ./audiobook-dir ./out
-   ```
-
-Common Options:
-- --debug: Enable debug logging
-- --dry-run: Show what would be done without making changes
-- --no-tui: Disable the Terminal User Interface
-- --no-interactive: Disable interactive prompts
-
-The CLI is built using Click and provides:
-- Command grouping and nesting
-- Automatic help text generation
-- Type checking and validation of inputs
-- Proper error handling and user feedback
+Dependencies:
+- click: Python package for creating beautiful command line interfaces with minimal code
+- rich: Terminal formatting, progress bars and TUI elements
+- dataclasses: Python standard library for creating data container classes
+- pathlib: Python standard library for object-oriented filesystem paths
 """
 
 import logging
@@ -57,7 +28,7 @@ from . import tui as tui_module
 
 # Configure logging
 logging.basicConfig(
-    level=logging.WARNING,  # Default to WARNING
+    level=logging.WARNING,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
@@ -127,6 +98,63 @@ def cli(ctx, debug: bool, tui: bool):
             raise click.ClickException(f"Welcome screen error: {str(e)}")
 
 
+@dataclass
+class CliOptions:
+    """Container for all CLI options."""
+
+    input_dir: Path
+    output_dir: Path
+    output_format: str
+    audio_config: AudioConfig
+    metadata: AudiobookMetadata
+    dry_run: bool
+    interactive: bool
+
+    def to_processing_options(self) -> ProcessingOptions:
+        """Convert to ProcessingOptions for the processor."""
+        return ProcessingOptions(
+            input_dir=self.input_dir,
+            output_dir=self.output_dir,
+            output_format=self.output_format,
+            audio_config=self.audio_config,
+            metadata=self.metadata,
+            dry_run=self.dry_run,
+        )
+
+
+@dataclass
+class ProcessCommandOptions:
+    """Options for the process command."""
+
+    input_dir: Path
+    output_dir: Path
+    output_format: str
+    bitrate: str
+    title: Optional[str]
+    artist: Optional[str]
+    cover: Optional[Path]
+    dry_run: bool
+    interactive: bool
+
+    def to_cli_options(self) -> CliOptions:
+        """Convert to CliOptions."""
+        audio_config = AudioConfig(bitrate=self.bitrate)
+        metadata = AudiobookMetadata(
+            title=self.title,
+            artist=self.artist,
+            cover_art=self.cover,
+        )
+        return CliOptions(
+            input_dir=self.input_dir,
+            output_dir=self.output_dir,
+            output_format=self.output_format,
+            audio_config=audio_config,
+            metadata=metadata,
+            dry_run=self.dry_run,
+            interactive=self.interactive,
+        )
+
+
 @cli.command()
 @click.argument(
     "input_dir",
@@ -146,6 +174,7 @@ def cli(ctx, debug: bool, tui: bool):
     default="m4b-ffmpeg",
     help="Output format and processing method",
 )
+# Audio config options
 @click.option(
     "--bitrate",
     "-b",
@@ -153,14 +182,26 @@ def cli(ctx, debug: bool, tui: bool):
     default="64k",
     help="Audio bitrate for encoding (default: 64k for spoken word)",
 )
-@click.option("--title", "-t", type=str, help="Audiobook title")
-@click.option("--artist", "-a", type=str, help="Audiobook artist/author")
+# Metadata options
+@click.option(
+    "--title",
+    "-t",
+    type=str,
+    help="Audiobook title",
+)
+@click.option(
+    "--artist",
+    "-a",
+    type=str,
+    help="Audiobook artist/author",
+)
 @click.option(
     "--cover",
     "-c",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="Cover art image file",
 )
+# Processing options
 @click.option(
     "--dry-run",
     "-d",
@@ -190,19 +231,20 @@ def process(
 
     INPUT_DIR is the directory containing the audiobook files and CUE sheets.
     """
-    audio_config = AudioConfig(bitrate=bitrate)
-    metadata = AudiobookMetadata(title=title, artist=artist, cover_art=cover)
-    processor = create_processor(
-        ProcessOptions(
-            input_dir=input_dir,
-            output_dir=output_dir,
-            output_format=output_format,
-            audio_config=audio_config,
-            metadata=metadata,
-            dry_run=dry_run,
-            interactive=interactive,
-        )
+    cmd_options = ProcessCommandOptions(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        output_format=output_format,
+        bitrate=bitrate,
+        title=title,
+        artist=artist,
+        cover=cover,
+        dry_run=dry_run,
+        interactive=interactive,
     )
+    cli_options = cmd_options.to_cli_options()
+    options = cli_options.to_processing_options()
+    processor = create_processor(options)
 
     try:
         if ctx.obj.use_tui:
@@ -214,7 +256,7 @@ def process(
             if not confirm_processing(ctx, flac_files, output_dir):
                 return
 
-        process_audiobook(processor, processor.options, flac_files)
+        process_audiobook(processor, options, flac_files, interactive=interactive)
 
     except (AudioProcessingError, CueProcessingError) as e:
         logger.error(str(e))
@@ -261,20 +303,7 @@ def combine_cue(ctx, input_dir: Path, output_dir: Path):
         raise click.ClickException(str(e))
 
 
-@dataclass
-class ProcessOptions:
-    """Options for processing audiobooks, including input/output paths, format, and metadata."""
-
-    input_dir: Path
-    output_dir: Path
-    output_format: str
-    audio_config: AudioConfig
-    metadata: AudiobookMetadata
-    dry_run: bool
-    interactive: bool
-
-
-def create_processor(options: ProcessOptions) -> AudiobookProcessor:
+def create_processor(options: ProcessingOptions) -> AudiobookProcessor:
     """Create an AudiobookProcessor with the given processing options."""
     return AudiobookProcessor(options)
 
@@ -293,17 +322,20 @@ def confirm_processing(ctx, flac_files: List[Path], output_dir: Path) -> bool:
 
 
 def process_audiobook(
-    processor: AudiobookProcessor, options: ProcessOptions, flac_files: List[Path]
+    processor: AudiobookProcessor,
+    options: ProcessingOptions,
+    flac_files: List[Path],
+    interactive: bool = True,
 ):
     """Process the audiobook with or without progress tracking based on TUI usage."""
-    if options.interactive:
+    if interactive:
         with tui_module.ProcessingProgress() as progress:
             if options.dry_run:
                 progress.start_task("Dry run")
                 processor.process()
                 progress.complete_task("Dry run")
             else:
-                process_with_progress(processor, options, flac_files, progress)
+                process_with_progress(options, flac_files, progress)
     else:
         if options.dry_run:
             click.echo("Starting dry run...")
@@ -319,8 +351,7 @@ def process_audiobook(
 
 @click.pass_context
 def process_with_progress(
-    processor: AudiobookProcessor,
-    options: ProcessOptions,
+    options: ProcessingOptions,
     flac_files: List[Path],
     progress,
 ):

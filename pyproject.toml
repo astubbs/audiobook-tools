@@ -9,16 +9,25 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.13"
+# Beautiful command line interfaces with minimal code
 click = "^8.0.0"
+# Rich text and beautiful formatting in the terminal
 rich = "^13.0.0"
+# Easy-to-use interactive command line prompts
 questionary = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
+# Testing framework
 pytest = "^7.0.0"
+# Code formatter
 black = "^23.0.0"
+# Import sorter
 isort = "^5.0.0"
+# Static code analyzer
 pylint = "^3.0.0"
+# Test automation tool
 tox = "^4.11.3"
+# Static type checker
 mypy = "^1.8.0"
 
 [tool.poetry.scripts]
