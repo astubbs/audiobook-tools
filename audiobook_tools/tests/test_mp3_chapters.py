@@ -137,7 +137,42 @@ def test_process_mp3_files(
     # Verify chapters file was created with correct structure
     chapters_file = output_dir / "chapters.txt"
     assert chapters_file.exists()
-    chapter_content = chapters_file.read_text().splitlines()
+    chapter_content = chapters_file.read_text()
+
+    # Verify exact format of chapters file
+    expected_content = """;FFMETADATA1
+[CHAPTER]
+TIMEBASE=1/1
+START=0
+END=1800
+title=Chapter 1 - Introduction
+[CHAPTER]
+TIMEBASE=1/1
+START=1800
+END=4500
+title=Chapter 2 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=4500
+END=5700
+title=Chapter 3 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=5700
+END=6900
+title=Chapter 4 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=6900
+END=8100
+title=Chapter 5 (1)"""
+
+    assert (
+        chapter_content == expected_content
+    ), "Chapters file should match expected format exactly"
+
+    # Continue with existing tests using splitlines()
+    chapter_content = chapter_content.splitlines()
 
     # Should have header and 5 chapters (2 from CD1 + 3 from CD2, malformed file skipped)
     assert len(chapter_content) > 5, "Should have header and chapters"
@@ -151,10 +186,10 @@ def test_process_mp3_files(
     # CD2 Chapter 5: 6900 to 8100 (20 min)
     expected_chapters = [
         ("Chapter 1 - Introduction", 0, 1800),
-        ("Chapter 2", 1800, 4500),
-        ("Chapter 3", 4500, 5700),
-        ("Chapter 4", 5700, 6900),
-        ("Chapter 5", 6900, 8100),
+        ("Chapter 2 (1)", 1800, 4500),
+        ("Chapter 3 (1)", 4500, 5700),
+        ("Chapter 4 (1)", 5700, 6900),
+        ("Chapter 5 (1)", 6900, 8100),
     ]
 
     chapter_idx = 0
@@ -174,7 +209,9 @@ def test_process_mp3_files(
                     title = chapter_content[j].split("=")[1]
 
             if title and start is not None and end is not None:
-                expected_title, expected_start, expected_end = expected_chapters[chapter_idx]
+                expected_title, expected_start, expected_end = expected_chapters[
+                    chapter_idx
+                ]
                 assert title == expected_title
                 assert start == expected_start
                 assert end == expected_end
@@ -296,16 +333,120 @@ def test_process_flat_mp3_files(
     # Verify chapters file was created with correct structure
     chapters_file = output_dir / "chapters.txt"
     assert chapters_file.exists()
-    chapter_content = chapters_file.read_text().splitlines()
+    chapter_content = chapters_file.read_text()
 
-    # Should have header and 16 chapters
-    assert len(chapter_content) > 16, "Should have header and chapters"
+    # Verify exact format of chapters file
+    expected_content = """;FFMETADATA1
+[CHAPTER]
+TIMEBASE=1/1
+START=0
+END=900
+title=Chapter 1 - Introduction
+[CHAPTER]
+TIMEBASE=1/1
+START=900
+END=1800
+title=Chapter 1 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=1800
+END=2700
+title=Chapter 2 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=2700
+END=3600
+title=Chapter 2 (2)
+[CHAPTER]
+TIMEBASE=1/1
+START=3600
+END=4500
+title=Chapter 3 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=4500
+END=5400
+title=Chapter 3 (2)
+[CHAPTER]
+TIMEBASE=1/1
+START=5400
+END=6300
+title=Chapter 3 (3)
+[CHAPTER]
+TIMEBASE=1/1
+START=6300
+END=7200
+title=Chapter 4 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=7200
+END=8100
+title=Chapter 4 (2)
+[CHAPTER]
+TIMEBASE=1/1
+START=8100
+END=9000
+title=Chapter 4 (3)
+[CHAPTER]
+TIMEBASE=1/1
+START=9000
+END=9900
+title=Chapter 5 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=9900
+END=10800
+title=Chapter 5 (2)
+[CHAPTER]
+TIMEBASE=1/1
+START=10800
+END=11700
+title=Chapter 6 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=11700
+END=12600
+title=Chapter 6 (2)
+[CHAPTER]
+TIMEBASE=1/1
+START=12600
+END=13500
+title=Chapter 7 (1)
+[CHAPTER]
+TIMEBASE=1/1
+START=13500
+END=14400
+title=Chapter 7 (2)"""
+
+    assert (
+        chapter_content == expected_content
+    ), "Chapters file should match expected format exactly"
+
+    # Continue with existing tests using splitlines()
+    chapter_content = chapter_content.splitlines()
+
+    # Should have header and all 16 chapters (no consolidation)
+    assert len(chapter_content) > 16, "Should have header and all chapters"
     assert chapter_content[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
 
-    # Each chapter should be 15 minutes (900 seconds) after the previous one
-    chapter_numbers = [1, 1, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 7]  # From filenames
-    chapter_names = ["Chapter 1 - Introduction"] + [
-        f"Chapter {num}" for num in chapter_numbers[1:]
+    # Each chapter should be 15 minutes (900 seconds)
+    expected_chapters = [
+        ("Chapter 1 - Introduction", 0, 900),
+        ("Chapter 1 (1)", 900, 1800),
+        ("Chapter 2 (1)", 1800, 2700),
+        ("Chapter 2 (2)", 2700, 3600),
+        ("Chapter 3 (1)", 3600, 4500),
+        ("Chapter 3 (2)", 4500, 5400),
+        ("Chapter 3 (3)", 5400, 6300),
+        ("Chapter 4 (1)", 6300, 7200),
+        ("Chapter 4 (2)", 7200, 8100),
+        ("Chapter 4 (3)", 8100, 9000),
+        ("Chapter 5 (1)", 9000, 9900),
+        ("Chapter 5 (2)", 9900, 10800),
+        ("Chapter 6 (1)", 10800, 11700),
+        ("Chapter 6 (2)", 11700, 12600),
+        ("Chapter 7 (1)", 12600, 13500),
+        ("Chapter 7 (2)", 13500, 14400),
     ]
 
     chapter_idx = 0
@@ -325,16 +466,17 @@ def test_process_flat_mp3_files(
                     title = chapter_content[j].split("=")[1]
 
             if title and start is not None and end is not None:
-                expected_title = chapter_names[chapter_idx]
-                expected_start = chapter_idx * 900  # 15 minutes = 900 seconds
-                expected_end = (chapter_idx + 1) * 900
-
+                expected_title, expected_start, expected_end = expected_chapters[
+                    chapter_idx
+                ]
                 assert title == expected_title
                 assert start == expected_start
                 assert end == expected_end
                 chapter_idx += 1
 
-    assert chapter_idx == len(chapter_names), "All chapters should be found"
+    assert chapter_idx == len(
+        expected_chapters
+    ), "All consolidated chapters should be found"
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"

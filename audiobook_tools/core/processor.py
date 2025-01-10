@@ -226,33 +226,55 @@ class AudiobookProcessor:
         chapters_file = self.options.output_dir / "chapters.txt"
         pattern = re.compile(r".*? - \d+ - (Chapter \d+.*?)\.mp3$")
 
-        # First pass: get all durations
-        durations = []
+        # Track chapter occurrences for suffixes
+        chapter_counts = {}  # Dict to track how many times we've seen each chapter
+        chapters = []  # List to store chapter info in order
+
+        current_time = 0
         for mp3_file in mp3_files:
             match = pattern.search(str(mp3_file))
             if not match:
                 logger.warning("Skipping malformed file: %s", mp3_file)
                 continue
 
+            chapter_title = match.group(1)
             duration = self._get_mp3_duration(mp3_file)
-            if duration > 0:
-                durations.append(duration)
+            if duration <= 0:
+                continue
 
-        # Second pass: write chapters with cumulative timestamps
+            # Special case for "Introduction" - don't add a suffix
+            if "Introduction" in chapter_title:
+                display_title = chapter_title
+            else:
+                # Add suffix starting from first occurrence
+                if chapter_title not in chapter_counts:
+                    chapter_counts[chapter_title] = 0
+                chapter_counts[chapter_title] += 1
+                display_title = f"{chapter_title} ({chapter_counts[chapter_title]})"
+
+            chapters.append(
+                {
+                    "title": display_title,
+                    "start": current_time,
+                    "end": current_time + duration,
+                }
+            )
+            current_time += duration
+
+        # Write chapters file
         with open(chapters_file, "w", encoding="utf-8") as f:
             f.write(";FFMETADATA1\n")  # FFmpeg metadata header
-            current_time = 0
-            for i, (mp3_file, duration) in enumerate(zip(mp3_files, durations), 1):
-                match = pattern.search(str(mp3_file))
-                if not match:
-                    continue
 
-                # Write chapter marker with cumulative timestamp
-                f.write("\n[CHAPTER]\nTIMEBASE=1/1\n")
-                f.write(f"START={current_time}\n")
-                current_time += duration
-                f.write(f"END={current_time}\n")
-                f.write(f"title={match.group(1)}\n")
+            for i, chapter in enumerate(chapters):
+                f.write("[CHAPTER]\n")
+                f.write("TIMEBASE=1/1\n")
+                f.write(f"START={chapter['start']}\n")
+                f.write(f"END={chapter['end']}\n")
+                # Don't add newline after last chapter
+                if i < len(chapters) - 1:
+                    f.write(f"title={chapter['title']}\n")
+                else:
+                    f.write(f"title={chapter['title']}")
 
         return chapters_file
 
@@ -320,7 +342,9 @@ class AudiobookProcessor:
             logger.info("Converting to AAC...")
             aac_file = self.options.output_dir / "audiobook.aac"
             if not (self.options.resume and aac_file.exists()):
-                convert_to_aac(combined_audio, aac_file, config=self.options.audio_config)
+                convert_to_aac(
+                    combined_audio, aac_file, config=self.options.audio_config
+                )
             else:
                 logger.info("Using existing AAC file: %s", aac_file)
 

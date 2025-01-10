@@ -2,10 +2,14 @@
 """Verify script that runs tests, formatting checks, and linting."""
 
 import argparse
+import logging
 import subprocess
 import sys
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
+
+# Configure logging to only show warnings and above
+logging.basicConfig(level=logging.WARNING)
 
 
 @dataclass
@@ -67,7 +71,7 @@ def main():
         # Then run tests and checks
         VerificationStep(
             name="Running tests",
-            command=["pytest"],
+            command=["pytest", "--log-level=WARNING"],
         ),
         VerificationStep(
             name="Running linting",

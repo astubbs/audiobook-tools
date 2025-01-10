@@ -123,7 +123,9 @@ def convert_to_aac(
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        raise AudioProcessingError(f"Failed to convert to AAC: {e.stderr if hasattr(e, 'stderr') else str(e)}") from e
+        raise AudioProcessingError(
+            f"Failed to convert to AAC: {e.stderr if hasattr(e, 'stderr') else str(e)}"
+        ) from e
 
 
 def create_m4b(
@@ -176,7 +178,9 @@ def create_m4b(
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        raise AudioProcessingError(f"Failed to create M4B file: {e.stderr if hasattr(e, 'stderr') else str(e)}") from e
+        raise AudioProcessingError(
+            f"Failed to create M4B file: {e.stderr if hasattr(e, 'stderr') else str(e)}"
+        ) from e
 
 
 def create_m4b_mp4box(
@@ -254,12 +258,16 @@ def merge_mp3_files(input_files: List[Path], output_file: Path) -> None:
         cmd = [
             "ffmpeg",
             "-stats",  # Show progress statistics
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(concat_file),
-            "-c", "copy",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_file),
+            "-c",
+            "copy",
             "-y",
-            str(output_file)
+            str(output_file),
         ]
 
         # Run without capturing stderr to show progress
@@ -274,4 +282,6 @@ def merge_mp3_files(input_files: List[Path], output_file: Path) -> None:
         # Clean up concat file
         concat_file.unlink()
     except subprocess.CalledProcessError as e:
-        raise AudioProcessingError(f"Failed to merge MP3 files: {e.stderr if hasattr(e, 'stderr') else str(e)}") from e
+        raise AudioProcessingError(
+            f"Failed to merge MP3 files: {e.stderr if hasattr(e, 'stderr') else str(e)}"
+        ) from e
