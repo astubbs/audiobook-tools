@@ -93,15 +93,33 @@ class AudiobookProcessor:
     @staticmethod
     def _extract_track_number(filename: Path) -> int:
         """Extract track number from MP3 filename.
-        
+
         Args:
             filename: Path to MP3 file
-            
+
         Returns:
             Track number as integer, or 0 if not found
         """
-        match = re.search(r" - (\d+) -", filename.stem)
-        return int(match.group(1)) if match else 0
+        # Look for CD and track number pattern
+        match = re.search(r"CD\d+ - (\d+) -", filename.stem)
+        if not match:
+            return 0
+        return int(match.group(1))
+
+    @staticmethod
+    def _extract_cd_number(filename: Path) -> int:
+        """Extract CD number from MP3 filename.
+
+        Args:
+            filename: Path to MP3 file
+
+        Returns:
+            CD number as integer, or 0 if not found
+        """
+        match = re.search(r"CD(\d+)", filename.stem)
+        if not match:
+            return 0
+        return int(match.group(1))
 
     def find_audio_files(self) -> List[Path]:
         """Find all audio files in the input directory.
@@ -127,18 +145,70 @@ class AudiobookProcessor:
         if flac_files:
             return flac_files
 
-        # If no FLAC files found, look for MP3 files
-        mp3_files = sorted(
-            list(self.options.input_dir.glob("*.mp3")),
-            key=self._extract_track_number,
+        # If no FLAC files found, look for MP3 files recursively
+        mp3_files = list(
+            f
+            for f in self.options.input_dir.rglob("*.mp3")
+            # Only include files that match our chapter pattern
+            if re.search(r"(?:CD\d+.*?)? - \d+ - Chapter \d+.*?\.mp3$", str(f))
         )
+
+        # Determine if we have a CD-based structure
+        has_cd_structure = any("CD" in f.stem for f in mp3_files)
+
+        # Sort based on structure
+        if has_cd_structure:
+            mp3_files = sorted(
+                mp3_files,
+                key=lambda p: (
+                    self._extract_cd_number(p),
+                    self._extract_track_number(p),
+                ),
+            )
+        else:
+            mp3_files = sorted(
+                mp3_files, key=lambda p: int(re.search(r" - (\d+) -", str(p)).group(1))
+            )
 
         if not mp3_files:
             raise AudioProcessingError(
-                f"No FLAC or MP3 files found in {self.options.input_dir}"
+                f"No valid FLAC or MP3 files found in {self.options.input_dir}"
             )
 
         return mp3_files
+
+    @staticmethod
+    def _get_mp3_duration(mp3_file: Path) -> int:
+        """Get duration of MP3 file in seconds.
+
+        Args:
+            mp3_file: Path to MP3 file
+
+        Returns:
+            Duration in seconds, or 0 if duration cannot be determined
+        """
+        cmd = ["ffmpeg", "-i", str(mp3_file)]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        duration_match = re.search(r"Duration: (\d{2}):(\d{2}):(\d{2})", result.stderr)
+        if duration_match:
+            hours, minutes, seconds = map(int, duration_match.groups())
+            return hours * 3600 + minutes * 60 + seconds
+        return 0
+
+    @staticmethod
+    def _format_timestamp(seconds: int) -> str:
+        """Format seconds as HH:MM:SS.
+
+        Args:
+            seconds: Number of seconds
+
+        Returns:
+            Formatted timestamp
+        """
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        secs = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
     def extract_chapters_from_filenames(self, mp3_files: List[Path]) -> Path:
         """Extract chapter information from MP3 filenames.
@@ -153,32 +223,31 @@ class AudiobookProcessor:
             AudioProcessingError: If chapter information cannot be extracted
         """
         chapters_file = self.options.output_dir / "chapters.txt"
-        pattern = re.compile(r".*? - (\d+) - (Chapter \d+.*?)\.mp3$")
+        pattern = re.compile(r".*? - \d+ - (Chapter \d+.*?)\.mp3$")
 
+        # First pass: get all durations
+        durations = []
+        for mp3_file in mp3_files:
+            match = pattern.search(str(mp3_file))
+            if not match:
+                logger.warning("Skipping malformed file: %s", mp3_file)
+                continue
+
+            duration = self._get_mp3_duration(mp3_file)
+            if duration > 0:
+                durations.append(duration)
+
+        # Second pass: write chapters with cumulative timestamps
         with open(chapters_file, "w", encoding="utf-8") as f:
             current_time = 0
-            for mp3_file in mp3_files:
+            for mp3_file, duration in zip(mp3_files, durations):
                 match = pattern.search(str(mp3_file))
                 if not match:
                     continue
 
-                # Get chapter title
-                chapter_title = match.group(2)
-
-                # Write chapter marker
-                f.write(
-                    f"{current_time // 3600:02d}:{(current_time % 3600) // 60:02d}:{current_time % 60:02d} {chapter_title}\n"
-                )
-
-                # Get duration of MP3 file using ffmpeg
-                cmd = ["ffmpeg", "-i", str(mp3_file), "-f", "null", "-"]
-                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-                duration_match = re.search(
-                    r"Duration: (\d{2}):(\d{2}):(\d{2})", result.stderr
-                )
-                if duration_match:
-                    hours, minutes, seconds = map(int, duration_match.groups())
-                    current_time += hours * 3600 + minutes * 60 + seconds
+                # Write chapter marker with cumulative timestamp
+                f.write(f"{self._format_timestamp(current_time)} {match.group(1)}\n")
+                current_time += duration
 
         return chapters_file
 

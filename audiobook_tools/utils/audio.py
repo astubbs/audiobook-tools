@@ -100,6 +100,7 @@ def convert_to_aac(
     try:
         cmd = [
             "ffmpeg",
+            "-stats",  # Show progress statistics
             "-i",
             str(input_file),
             "-c:a",
@@ -113,71 +114,67 @@ def convert_to_aac(
             "-y",
             str(output_file),
         ]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        # Run without capturing stdout to show progress
+        result = subprocess.run(
+            cmd,
+            check=True,
+            stdout=subprocess.PIPE,  # Still capture stdout for error handling
+            stderr=None,  # Let stderr through for progress
+            text=True,
+        )
     except subprocess.CalledProcessError as e:
-        raise AudioProcessingError(f"Failed to convert to AAC: {e.stderr}") from e
+        raise AudioProcessingError(f"Failed to convert to AAC: {e.stderr if hasattr(e, 'stderr') else str(e)}") from e
 
 
 def create_m4b(
     input_file: Path,
     output_file: Path,
-    *,  # Force keyword arguments
-    metadata: AudiobookMetadata,
     chapters_file: Optional[Path] = None,
+    metadata: Optional[AudiobookMetadata] = None,
 ) -> None:
-    """Create an M4B audiobook file with metadata using ffmpeg.
+    """Create an M4B audiobook file using ffmpeg.
 
     Args:
         input_file: Path to input audio file (should be AAC)
         output_file: Path where the M4B file will be written
-        metadata: Audiobook metadata
-        chapters_file: Optional path to FFmpeg metadata file with chapters
+        chapters_file: Optional path to ffmpeg chapters file
+        metadata: Optional metadata to add to the M4B file
 
     Raises:
         AudioProcessingError: If there are issues creating the M4B file
     """
     try:
-        cmd = ["ffmpeg", "-i", str(input_file)]
+        cmd = ["ffmpeg", "-stats"]  # Show progress statistics
 
-        # Add metadata if provided
-        if metadata.title:
-            cmd.extend(["-metadata", f"title={metadata.title}"])
-        if metadata.artist:
-            cmd.extend(["-metadata", f"artist={metadata.artist}"])
-
-        # Add cover art if provided
-        if metadata.cover_art:
-            cmd.extend(["-i", str(metadata.cover_art), "-map", "0:a", "-map", "1:v"])
+        # Add input file
+        cmd.extend(["-i", str(input_file)])
 
         # Add chapters if provided
         if chapters_file:
             cmd.extend(["-i", str(chapters_file), "-map_metadata", "1"])
 
+        # Add metadata if provided
+        if metadata:
+            if metadata.title:
+                cmd.extend(["-metadata", f"title={metadata.title}"])
+            if metadata.artist:
+                cmd.extend(["-metadata", f"artist={metadata.artist}"])
+            if metadata.cover_art:
+                cmd.extend(["-i", str(metadata.cover_art), "-map", "2"])
+
         # Output options
-        output_opts = [
-            "-c:a",
-            "copy",  # Copy audio stream without re-encoding
-        ]
+        cmd.extend(["-c", "copy", "-y", str(output_file)])
 
-        # Add video codec option only if we have cover art
-        if metadata.cover_art:
-            output_opts.extend(["-c:v", "copy"])
-
-        # Add container format and output file
-        output_opts.extend(
-            [
-                "-f",
-                "mp4",  # Force MP4 container
-                "-y",  # Overwrite output file if it exists
-                str(output_file),
-            ]
+        # Run without capturing stderr to show progress
+        result = subprocess.run(
+            cmd,
+            check=True,
+            stdout=subprocess.PIPE,  # Still capture stdout for error handling
+            stderr=None,  # Let stderr through for progress
+            text=True,
         )
-
-        cmd.extend(output_opts)
-
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        raise AudioProcessingError(f"Failed to create M4B file: {e.stderr}") from e
+        raise AudioProcessingError(f"Failed to create M4B file: {e.stderr if hasattr(e, 'stderr') else str(e)}") from e
 
 
 def create_m4b_mp4box(
@@ -245,22 +242,34 @@ def merge_mp3_files(input_files: List[Path], output_file: Path) -> None:
         AudioProcessingError: If there are issues merging the files
     """
     try:
-        # Create concat file
+        # Create a concat file listing all inputs
         concat_file = output_file.parent / "concat.txt"
         with open(concat_file, "w", encoding="utf-8") as f:
-            for file in input_files:
-                f.write(f"file '{file.absolute()}'\n")
+            for input_file in input_files:
+                f.write(f"file '{input_file.absolute()}'\n")
 
-        # Merge files
+        # Merge files using ffmpeg concat demuxer
         cmd = [
             "ffmpeg",
+            "-stats",  # Show progress statistics
             "-f", "concat",
             "-safe", "0",
             "-i", str(concat_file),
             "-c", "copy",
+            "-y",
             str(output_file)
         ]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
 
-    except (subprocess.CalledProcessError, IOError) as e:
-        raise AudioProcessingError(f"Failed to merge MP3 files: {str(e)}") from e
+        # Run without capturing stderr to show progress
+        result = subprocess.run(
+            cmd,
+            check=True,
+            stdout=subprocess.PIPE,  # Still capture stdout for error handling
+            stderr=None,  # Let stderr through for progress
+            text=True,
+        )
+
+        # Clean up concat file
+        concat_file.unlink()
+    except subprocess.CalledProcessError as e:
+        raise AudioProcessingError(f"Failed to merge MP3 files: {e.stderr if hasattr(e, 'stderr') else str(e)}") from e
