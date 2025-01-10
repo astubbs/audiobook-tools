@@ -57,6 +57,7 @@ class AudioProcessingError(Exception):
 @dataclass
 class AudioConfig:
     """Configuration for audio conversion."""
+
     bitrate: str = "64k"
     channels: int = 1  # Mono for spoken word
     sample_rate: int = 44100

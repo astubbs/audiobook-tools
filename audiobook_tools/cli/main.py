@@ -51,7 +51,7 @@ from . import tui as tui_module
 # Configure logging
 logging.basicConfig(
     level=logging.WARNING,  # Default to WARNING
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -59,30 +59,35 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CliContext:
     """Context object for CLI commands."""
+
     debug: bool = False
     use_tui: bool = True
 
 
 @click.group(invoke_without_command=True)
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
-@click.option("--tui/--no-tui", default=True, help="Enable/disable Terminal User Interface")
+@click.option(
+    "--tui/--no-tui", default=True, help="Enable/disable Terminal User Interface"
+)
 @click.pass_context
 def cli(ctx, debug: bool, tui: bool):
     """Audiobook Tools - Process and convert audiobooks with chapter markers."""
     ctx.obj = CliContext(debug=debug, use_tui=tui)
-    
+
     # Only set debug logging if --debug flag is used
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Debug mode enabled")
-    
+
     logger.debug("CLI function called")
     logger.debug("Context: %s", ctx.obj)
     logger.debug("Invoked subcommand: %s", ctx.invoked_subcommand)
     logger.debug("Args: %s", ctx.args)
 
     # If no command is provided and --help is not used, show the welcome screen
-    if ctx.invoked_subcommand is None and not any(arg in ['--help', '-h'] for arg in ctx.args):
+    if ctx.invoked_subcommand is None and not any(
+        arg in ["--help", "-h"] for arg in ctx.args
+    ):
         logger.debug("Showing welcome screen")
         try:
             if ctx.obj.use_tui:
@@ -92,8 +97,13 @@ def cli(ctx, debug: bool, tui: bool):
                 logger.debug("Raw return value from display_welcome: %r", options)
                 if options:
                     if isinstance(options, str):
-                        logger.error("display_welcome returned a string instead of options dict: %r", options)
-                        raise click.ClickException("Invalid return value from welcome screen")
+                        logger.error(
+                            "display_welcome returned a string instead of options dict: %r",
+                            options,
+                        )
+                        raise click.ClickException(
+                            "Invalid return value from welcome screen"
+                        )
                     logger.debug("Invoking process command with options: %s", options)
                     return ctx.invoke(process, **options)
                 else:
@@ -127,7 +137,7 @@ def combine_cue(ctx, input_dir: Path, output_dir: Path):
             tui_module.display_header("Combining CUE Sheets")
 
         processor = CueProcessor(input_dir, output_dir)
-        
+
         if ctx.obj.use_tui:
             with tui_module.ProcessingProgress() as progress:
                 task = progress.start_task("Processing CUE files")
@@ -220,7 +230,7 @@ def process(
             input_dir=input_dir,
             output_dir=output_dir,
             output_format=output_format,
-            bitrate=bitrate,
+            audio_config=AudioConfig(bitrate=bitrate),
             title=title,
             artist=artist,
             cover_art=cover,
@@ -292,7 +302,9 @@ def process(
                     progress.complete_task("Converting audio")
 
             if dry_run:
-                tui_module.console.print("[green]Dry run completed successfully.[/green]")
+                tui_module.console.print(
+                    "[green]Dry run completed successfully.[/green]"
+                )
             else:
                 tui_module.console.print(
                     "[bold green]Successfully created audiobook:[/bold green] "

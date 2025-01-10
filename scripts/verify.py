@@ -19,8 +19,14 @@ def main():
     """Run all verification steps."""
     steps = [
         (["poetry", "run", "pytest"], "Running tests"),
-        (["poetry", "run", "black", "--check", "audiobook_tools"], "Checking code formatting (black)"),
-        (["poetry", "run", "isort", "--check", "audiobook_tools"], "Checking import sorting (isort)"),
+        (
+            ["poetry", "run", "black", "--check", "audiobook_tools"],
+            "Checking code formatting (black)",
+        ),
+        (
+            ["poetry", "run", "isort", "--check", "audiobook_tools"],
+            "Checking import sorting (isort)",
+        ),
         (["poetry", "run", "pylint", "audiobook_tools"], "Running linting (pylint)"),
         (["poetry", "run", "mypy", "audiobook_tools"], "Running type checking (mypy)"),
     ]
@@ -30,12 +36,12 @@ def main():
     for command, description in steps:
         print(f"\n=== {description} ===")
         exit_code, stdout, stderr = run_command(command)
-        
+
         if stdout:
             print(stdout)
         if stderr:
             print(stderr, file=sys.stderr)
-        
+
         if exit_code != 0:
             failed_steps.append(description)
             print(f"❌ {description} failed")
@@ -53,4 +59,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()

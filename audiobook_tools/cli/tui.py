@@ -1,13 +1,14 @@
 """Terminal User Interface components using rich."""
 
 import logging
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import questionary
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
@@ -17,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 def browse_directory(message: str, default: str = ".") -> Optional[Path]:
     """Browse for a directory using questionary's path autocomplete.
-    
+
     Args:
         message: The prompt message to display
         default: The default directory to start in
-    
+
     Returns:
         Selected directory path or None if cancelled
     """
@@ -29,7 +30,7 @@ def browse_directory(message: str, default: str = ".") -> Optional[Path]:
         # Ensure default directory exists
         current = Path(default).resolve()
         current.mkdir(parents=True, exist_ok=True)
-        
+
         # Show current directory contents
         try:
             dirs = [d for d in current.iterdir() if d.is_dir()]
@@ -48,9 +49,9 @@ def browse_directory(message: str, default: str = ".") -> Optional[Path]:
             message,
             default=str(current),
             only_directories=True,
-            validate=lambda p: True  # Allow non-existent directories
+            validate=lambda p: True,  # Allow non-existent directories
         ).ask()
-        
+
         if path:
             selected = Path(path)
             selected.mkdir(parents=True, exist_ok=True)
@@ -62,18 +63,21 @@ def browse_directory(message: str, default: str = ".") -> Optional[Path]:
 
 def display_welcome() -> Optional[Dict]:
     """Display the welcome screen and guide user through initial choices.
-    
+
     Returns:
         Dictionary of user choices or None if cancelled
     """
     console.print()
-    console.print(Panel(
-        "[bold blue]Welcome to Audiobook Tools[/bold blue]\n\n"
-        "This tool helps you process audiobooks from CD rips (FLAC+CUE) into M4B format.\n"
-        "It will guide you through the process step by step.",
-        title="🎧 Audiobook Tools",
-        subtitle="Press Ctrl+C at any time to exit",
-    ), justify="center")
+    console.print(
+        Panel(
+            "[bold blue]Welcome to Audiobook Tools[/bold blue]\n\n"
+            "This tool helps you process audiobooks from CD rips (FLAC+CUE) into M4B format.\n"
+            "It will guide you through the process step by step.",
+            title="🎧 Audiobook Tools",
+            subtitle="Press Ctrl+C at any time to exit",
+        ),
+        justify="center",
+    )
     console.print()
 
     # Get input directory with browser
@@ -82,21 +86,23 @@ def display_welcome() -> Optional[Dict]:
             "[bold]Select your audiobook directory[/bold]\n"
             "This should be the directory containing your CD folders with FLAC and CUE files"
         )
-        
+
         if input_dir is None:  # User cancelled
             return None
-            
+
         if not input_dir.exists():
             console.print("[red]Directory not found. Please try again.[/red]")
             continue
-            
+
         flac_files = list(input_dir.rglob("*.flac"))
         if not flac_files:
-            console.print("[red]No FLAC files found in this directory. Please check the path.[/red]")
+            console.print(
+                "[red]No FLAC files found in this directory. Please check the path.[/red]"
+            )
             if not Confirm.ask("Try another directory?"):
                 return None
             continue
-            
+
         break
 
     # Show found files
@@ -105,10 +111,9 @@ def display_welcome() -> Optional[Dict]:
     # Get output directory with browser
     default_output = str(input_dir.parent / "out")
     output_dir = browse_directory(
-        "[bold]Select output directory[/bold]",
-        default=default_output
+        "[bold]Select output directory[/bold]", default=default_output
     )
-    
+
     if output_dir is None:  # User cancelled
         return None
 
@@ -118,15 +123,13 @@ def display_welcome() -> Optional[Dict]:
         "2": ("m4b-mp4box", "M4B using MP4Box"),
         "3": ("aac", "AAC audio only"),
     }
-    
+
     console.print("\n[bold]Choose output format:[/bold]")
     for key, (_, desc) in format_choices.items():
         console.print(f"{key}. {desc}")
-    
+
     format_choice = Prompt.ask(
-        "Enter your choice",
-        choices=list(format_choices.keys()),
-        default="1"
+        "Enter your choice", choices=list(format_choices.keys()), default="1"
     )
     output_format = format_choices[format_choice][0]
 
@@ -142,9 +145,9 @@ def display_welcome() -> Optional[Dict]:
         "bitrate": "64k",  # Default bitrate
         "dry_run": False,  # Default to actual processing
         "interactive": True,  # Default to interactive mode
-        **metadata
+        **metadata,
     }
-    
+
     logger.debug("Returning options: %s", result)
     return result
 
@@ -232,7 +235,7 @@ class ProcessingProgress:
 
 def prompt_metadata() -> Dict:
     """Prompt user for audiobook metadata.
-    
+
     Returns:
         Dictionary containing metadata values
     """
@@ -249,9 +252,9 @@ def prompt_metadata() -> Dict:
         while True:
             cover_path = questionary.path(
                 "Select cover art image",
-                validate=lambda p: Path(p).is_file() or "Please select a valid file"
+                validate=lambda p: Path(p).is_file() or "Please select a valid file",
             ).ask()
-            
+
             if cover_path:
                 metadata["cover"] = Path(cover_path)
                 break
@@ -269,4 +272,4 @@ def confirm_processing(files: List[Path], output_dir: Path) -> bool:
     display_files(files)
     console.print(f"Output directory: [cyan]{output_dir}[/cyan]")
     console.print()
-    return Confirm.ask("Continue with processing?") 
+    return Confirm.ask("Continue with processing?")

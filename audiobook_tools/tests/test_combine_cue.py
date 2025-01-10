@@ -51,7 +51,7 @@ def test_parse_cue_file(tmp_path):
     assert cue_sheet.tracks[0].index[1] == "00:00:00"
 
 
-@patch.object(CueProcessor, 'get_audio_length')
+@patch.object(CueProcessor, "get_audio_length")
 def test_combine_cue_sheets(mock_get_audio_length, tmp_path):
     """Test combining multiple CUE sheets into one."""
     # Mock audio file duration
