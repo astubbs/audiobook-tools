@@ -26,6 +26,7 @@ This section provides context and guidelines specifically for LLMs assisting wit
 - Don't remove error handling or logging
 - Keep the TUI optional but enabled by default
 - Remember that users might not have all dependencies installed
+- Always use git commands for file operations (`git mv` for moves/renames, `git rm` for deletions)
 
 ### Known LLM Pitfalls
 - Suggesting incomplete imports
