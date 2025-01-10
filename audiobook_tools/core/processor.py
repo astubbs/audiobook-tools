@@ -49,7 +49,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from ..common import AudiobookMetadata
 from ..utils.audio import (
@@ -103,9 +103,15 @@ class AudiobookProcessor:
         """
         # Look for CD and track number pattern
         match = re.search(r"CD\d+ - (\d+) -", filename.stem)
-        if not match:
-            return 0
-        return int(match.group(1))
+        if match:
+            return int(match.group(1))
+
+        # Try alternate pattern without CD prefix
+        match = re.search(r" - (\d+) -", filename.stem)
+        if match:
+            return int(match.group(1))
+
+        return 0
 
     @staticmethod
     def _extract_cd_number(filename: Path) -> int:
@@ -118,9 +124,9 @@ class AudiobookProcessor:
             CD number as integer, or 0 if not found
         """
         match = re.search(r"CD(\d+)", filename.stem)
-        if not match:
-            return 0
-        return int(match.group(1))
+        if match:
+            return int(match.group(1))
+        return 0
 
     def find_audio_files(self) -> List[Path]:
         """Find all audio files in the input directory.
@@ -167,9 +173,14 @@ class AudiobookProcessor:
                 ),
             )
         else:
-            mp3_files = sorted(
-                mp3_files, key=lambda p: int(re.search(r" - (\d+) -", str(p)).group(1))
-            )
+
+            def extract_track_number(path: Path) -> int:
+                match = re.search(r" - (\d+) -", str(path))
+                if match:
+                    return int(match.group(1))
+                return 0
+
+            mp3_files = sorted(mp3_files, key=extract_track_number)
 
         if not mp3_files:
             raise AudioProcessingError(
@@ -212,6 +223,9 @@ class AudiobookProcessor:
         secs = seconds % 60
         return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
+    # pylint: disable=too-many-locals
+    # This method needs to track multiple local variables for chapter processing
+    # Breaking it up would make the code harder to understand as these variables are tightly coupled
     def extract_chapters_from_filenames(self, mp3_files: List[Path]) -> Path:
         """Extract chapter information from MP3 filenames.
 
@@ -238,7 +252,9 @@ class AudiobookProcessor:
                 logger.warning("Skipping malformed file: %s", mp3_file)
                 continue
 
-            chapter_title = match.group(1)
+            chapter_title = match.group(
+                1
+            )  # Safe to use group(1) here since we checked match
             duration = self._get_mp3_duration(mp3_file)
             if duration <= 0:
                 continue
@@ -276,6 +292,117 @@ class AudiobookProcessor:
 
         return chapters_file
 
+    def _process_mp3_files(self, audio_files: List[Path]) -> Tuple[Path, Path]:
+        """Process MP3 files, merging them and extracting chapters.
+
+        Args:
+            audio_files: List of MP3 files to process
+
+        Returns:
+            Tuple of (combined audio file, chapters file)
+        """
+        combined_audio = self.options.output_dir / "combined.mp3"
+        if not (self.options.resume and combined_audio.exists()):
+            logger.info("Merging MP3 files...")
+            merge_mp3_files(audio_files, combined_audio)
+        else:
+            logger.info("Using existing combined MP3 file: %s", combined_audio)
+
+        # Extract chapters from filenames
+        logger.info("Processing chapter information from filenames...")
+        chapters_file = self.extract_chapters_from_filenames(audio_files)
+        return combined_audio, chapters_file
+
+    def _process_flac_files(self, audio_files: List[Path]) -> Tuple[Path, Path]:
+        """Process FLAC files, merging them and processing CUE sheets.
+
+        Args:
+            audio_files: List of FLAC files to process
+
+        Returns:
+            Tuple of (combined audio file, chapters file)
+        """
+        combined_audio = self.options.output_dir / "combined.flac"
+        if not (self.options.resume and combined_audio.exists()):
+            logger.info("Merging FLAC files...")
+            merge_flac_files(audio_files, combined_audio)
+        else:
+            logger.info("Using existing combined FLAC file: %s", combined_audio)
+
+        # Process CUE sheets
+        logger.info("Processing CUE sheets...")
+        cue_processor = CueProcessor(self.options.input_dir, self.options.output_dir)
+        chapters_file = cue_processor.process_directory()
+        return combined_audio, chapters_file
+
+    def _convert_to_aac(self, combined_audio: Path) -> Path:
+        """Convert audio to AAC format.
+
+        Args:
+            combined_audio: Path to the combined audio file
+
+        Returns:
+            Path to the AAC file
+        """
+        aac_file = self.options.output_dir / "audiobook.aac"
+        if not (self.options.resume and aac_file.exists()):
+            convert_to_aac(combined_audio, aac_file, config=self.options.audio_config)
+        else:
+            logger.info("Using existing AAC file: %s", aac_file)
+        return aac_file
+
+    def _create_m4b_output(self, aac_file: Path, chapters_file: Path) -> Path:
+        """Create M4B output file.
+
+        Args:
+            aac_file: Path to the AAC file
+            chapters_file: Path to the chapters file
+
+        Returns:
+            Path to the M4B file
+        """
+        output_filename = (
+            f"{self.options.metadata.artist}: {self.options.metadata.title}.m4b"
+        )
+        output_file = self.options.output_dir / output_filename
+
+        if self.options.output_format == "m4b-ffmpeg":
+            create_m4b(
+                aac_file,
+                output_file,
+                chapters_file=chapters_file,
+                metadata=self.options.metadata,
+            )
+        else:
+            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
+        return output_file
+
+    def _create_output_file(self, combined_audio: Path, chapters_file: Path) -> Path:
+        """Create the final output file in the desired format.
+
+        Args:
+            combined_audio: Path to the combined audio file
+            chapters_file: Path to the chapters file
+
+        Returns:
+            Path to the final output file
+        """
+        if self.options.output_format == "aac":
+            # Just convert to AAC
+            logger.info("Converting to AAC...")
+            output_file = self.options.output_dir / "audiobook.aac"
+            convert_to_aac(
+                combined_audio, output_file, config=self.options.audio_config
+            )
+            return output_file
+
+        # Convert to AAC first
+        logger.info("Converting to AAC...")
+        aac_file = self._convert_to_aac(combined_audio)
+
+        # Create M4B output
+        return self._create_m4b_output(aac_file, chapters_file)
+
     def process(self) -> Path:
         """Process the audiobook files.
 
@@ -308,65 +435,9 @@ class AudiobookProcessor:
 
         # Process files based on type
         if is_mp3:
-            # For MP3 files, merge them and extract chapters from filenames
-            combined_audio = self.options.output_dir / "combined.mp3"
-            if not (self.options.resume and combined_audio.exists()):
-                logger.info("Merging MP3 files...")
-                merge_mp3_files(audio_files, combined_audio)
-            else:
-                logger.info("Using existing combined MP3 file: %s", combined_audio)
-
-            # Extract chapters from filenames
-            logger.info("Processing chapter information from filenames...")
-            chapters_file = self.extract_chapters_from_filenames(audio_files)
+            combined_audio, chapters_file = self._process_mp3_files(audio_files)
         else:
-            # For FLAC files, use existing merge and CUE processing
-            combined_audio = self.options.output_dir / "combined.flac"
-            if not (self.options.resume and combined_audio.exists()):
-                logger.info("Merging FLAC files...")
-                merge_flac_files(audio_files, combined_audio)
-            else:
-                logger.info("Using existing combined FLAC file: %s", combined_audio)
+            combined_audio, chapters_file = self._process_flac_files(audio_files)
 
-            # Process CUE sheets
-            logger.info("Processing CUE sheets...")
-            cue_processor = CueProcessor(
-                self.options.input_dir, self.options.output_dir
-            )
-            chapters_file = cue_processor.process_directory()
-
-        # Convert to AAC if needed
-        if self.options.output_format != "aac":
-            logger.info("Converting to AAC...")
-            aac_file = self.options.output_dir / "audiobook.aac"
-            if not (self.options.resume and aac_file.exists()):
-                convert_to_aac(
-                    combined_audio, aac_file, config=self.options.audio_config
-                )
-            else:
-                logger.info("Using existing AAC file: %s", aac_file)
-
-            # Create output filename in the format 'author: title'
-            output_filename = (
-                f"{self.options.metadata.artist}: {self.options.metadata.title}.m4b"
-            )
-            output_file = self.options.output_dir / output_filename
-
-            if self.options.output_format == "m4b-ffmpeg":
-                create_m4b(
-                    aac_file,
-                    output_file,
-                    chapters_file=chapters_file,
-                    metadata=self.options.metadata,
-                )
-                return output_file
-
-            # m4b-mp4box
-            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
-            return output_file
-
-        # Just convert to AAC
-        logger.info("Converting to AAC...")
-        output_file = self.options.output_dir / "audiobook.aac"
-        convert_to_aac(combined_audio, output_file, config=self.options.audio_config)
-        return output_file
+        # Create final output file
+        return self._create_output_file(combined_audio, chapters_file)

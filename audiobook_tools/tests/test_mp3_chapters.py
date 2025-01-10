@@ -1,5 +1,12 @@
 """Tests for processing MP3 files with chapter information in filenames."""
 
+# pylint: disable=redefined-outer-name
+# This is expected for pytest fixtures
+
+# pylint: disable=duplicate-code
+# Duplicate code in test files is acceptable as it makes tests more readable
+# and maintainable by keeping test data close to the tests that use it
+
 import re
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -18,7 +25,7 @@ from audiobook_tools.utils.audio import AudioProcessingError
 
 
 @pytest.fixture
-def sample_mp3_files(tmp_path: Path) -> Path:
+def mp3_files_dir(tmp_path: Path) -> Path:
     """Create a sample directory with MP3 files that have chapter information in filenames."""
     book_dir = tmp_path / "Test Author - Test Book (Audio Book)"
     book_dir.mkdir()
@@ -56,11 +63,11 @@ def sample_mp3_files(tmp_path: Path) -> Path:
 
 
 def test_detect_mp3_chapters(
-    sample_mp3_files: Path,
-):  # pylint: disable=redefined-outer-name
+    mp3_files_dir: Path,
+):
     """Test that we can detect MP3 files and extract chapter information."""
     # Should find all MP3s recursively
-    mp3_files = sorted(sample_mp3_files.rglob("*.mp3"))
+    mp3_files = sorted(mp3_files_dir.rglob("*.mp3"))
     assert len(mp3_files) == 6  # Total across all CDs including malformed
 
     # Test filename pattern matching
@@ -90,16 +97,17 @@ def test_detect_mp3_chapters(
 
 
 @patch("audiobook_tools.utils.audio.subprocess.run")
-def test_process_mp3_files(mock_run: Mock, sample_mp3_files: Path, tmp_path: Path):
+def test_process_mp3_files(mock_run: Mock, mp3_files_dir: Path, tmp_path: Path):
     """Test processing MP3 files into M4B with chapters."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    metadata, audio_config = create_test_options(sample_mp3_files, output_dir)
+    # Create test options
+    metadata, audio_config = create_test_options()
 
     # Create processing options
     options = ProcessingOptions(
-        input_dir=sample_mp3_files,
+        input_dir=mp3_files_dir,
         output_dir=output_dir,
         output_format="m4b-ffmpeg",
         metadata=metadata,
@@ -159,11 +167,11 @@ title=Chapter 5 (1)""".strip()
     ), "Chapters file should match expected format exactly"
 
     # Continue with existing tests using splitlines()
-    chapter_content = chapter_content.splitlines()
+    chapter_lines = chapter_content.splitlines()
 
     # Should have header and 5 chapters (2 from CD1 + 3 from CD2, malformed file skipped)
-    assert len(chapter_content) > 5, "Should have header and chapters"
-    assert chapter_content[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
+    assert len(chapter_lines) > 5, "Should have header and chapters"
+    assert chapter_lines[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
 
     # Verify chapter content
     # CD1 Chapter 1: 0 to 1800 (30 min)
@@ -179,14 +187,14 @@ title=Chapter 5 (1)""".strip()
         ("Chapter 5 (1)", 6900, 8100),
     ]
 
-    verify_chapters(chapter_content, expected_chapters)
+    verify_chapters(chapter_lines, expected_chapters)
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"
 
 
 @pytest.fixture
-def sample_flat_mp3_files(tmp_path: Path) -> Path:
+def flat_mp3_dir(tmp_path: Path) -> Path:
     """Create a sample directory with MP3 files in a flat structure (no CD subdirs)."""
     book_dir = tmp_path / "Test Author - Test Book (Audio Book)"
     book_dir.mkdir()
@@ -221,11 +229,11 @@ def sample_flat_mp3_files(tmp_path: Path) -> Path:
 
 
 def test_flat_mp3_structure(
-    sample_flat_mp3_files: Path,
-):  # pylint: disable=redefined-outer-name
+    flat_mp3_dir: Path,
+):
     """Test that we can process MP3 files without CD directories."""
     # Should find all MP3s in the flat directory
-    mp3_files = sorted(sample_flat_mp3_files.rglob("*.mp3"))
+    mp3_files = sorted(flat_mp3_dir.rglob("*.mp3"))
     assert len(mp3_files) == 16  # Total number of chapters
 
     # Test filename pattern matching
@@ -245,18 +253,17 @@ def test_flat_mp3_structure(
 
 
 @patch("audiobook_tools.utils.audio.subprocess.run")
-def test_process_flat_mp3_files(
-    mock_run: Mock, sample_flat_mp3_files: Path, tmp_path: Path
-):
+def test_process_flat_mp3_files(mock_run: Mock, flat_mp3_dir: Path, tmp_path: Path):
     """Test processing MP3 files without CD directories."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    metadata, audio_config = create_test_options(sample_flat_mp3_files, output_dir)
+    # Create test options
+    metadata, audio_config = create_test_options()
 
     # Create processing options
     options = ProcessingOptions(
-        input_dir=sample_flat_mp3_files,
+        input_dir=flat_mp3_dir,
         output_dir=output_dir,
         output_format="m4b-ffmpeg",
         metadata=metadata,
@@ -364,11 +371,11 @@ title=Chapter 7 (2)""".strip()
     ), "Chapters file should match expected format exactly"
 
     # Continue with existing tests using splitlines()
-    chapter_content = chapter_content.splitlines()
+    chapter_lines = chapter_content.splitlines()
 
     # Should have header and all 16 chapters (no consolidation)
-    assert len(chapter_content) > 16, "Should have header and all chapters"
-    assert chapter_content[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
+    assert len(chapter_lines) > 16, "Should have header and all chapters"
+    assert chapter_lines[0] == ";FFMETADATA1", "Should have FFmpeg metadata header"
 
     # Each chapter should be 15 minutes (900 seconds)
     expected_chapters = [
@@ -390,30 +397,31 @@ title=Chapter 7 (2)""".strip()
         ("Chapter 7 (2)", 13500, 14400),
     ]
 
-    verify_chapters(chapter_content, expected_chapters)
+    verify_chapters(chapter_lines, expected_chapters)
 
     # Verify output is M4B
     assert output_file.suffix == ".m4b"
 
 
 @pytest.fixture
-def test_empty_dir(tmp_path: Path) -> Path:
+def empty_dir(tmp_path: Path) -> Path:
     """Create an empty directory for testing error cases."""
     book_dir = tmp_path / "Empty Book"
     book_dir.mkdir()
     return book_dir
 
 
-def test_no_valid_audio_files(test_empty_dir: Path, tmp_path: Path):
+def test_no_valid_audio_files(empty_dir: Path, tmp_path: Path):
     """Test that we handle the case when no valid audio files are found."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    metadata, audio_config = create_test_options(test_empty_dir, output_dir)
+    # Create test options
+    metadata, audio_config = create_test_options()
 
     # Create processing options
     options = ProcessingOptions(
-        input_dir=test_empty_dir,
+        input_dir=empty_dir,
         output_dir=output_dir,
         output_format="m4b-ffmpeg",
         metadata=metadata,
@@ -430,9 +438,7 @@ def test_no_valid_audio_files(test_empty_dir: Path, tmp_path: Path):
 
 
 @patch("audiobook_tools.utils.audio.subprocess.run")
-def test_cli_command_no_audio_files(
-    mock_run: Mock, test_empty_dir: Path, tmp_path: Path
-):
+def test_cli_command_no_audio_files(mock_run: Mock, empty_dir: Path, tmp_path: Path):
     """Test CLI command mode with explicit parameters when no audio files are found."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
@@ -447,7 +453,7 @@ def test_cli_command_no_audio_files(
         cli,
         [
             "process",
-            str(test_empty_dir),
+            str(empty_dir),
             "--output-dir",
             str(output_dir),
             "--title",
@@ -459,6 +465,6 @@ def test_cli_command_no_audio_files(
     )
 
     assert result.exit_code == 1
-    assert f"No valid FLAC or MP3 files found in {test_empty_dir}" in result.output
+    assert f"No valid FLAC or MP3 files found in {empty_dir}" in result.output
     assert "Error: " in result.output  # Click error prefix
     assert not mock_run.called  # No ffmpeg calls should be made

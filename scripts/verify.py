@@ -68,6 +68,10 @@ def main():
             command=["isort", "audiobook_tools"],
             check_command=["isort", "--check-only", "audiobook_tools"],
         ),
+        VerificationStep(
+            name="Running type checking",
+            command=["mypy", "audiobook_tools"],
+        ),
         # Then run tests and checks
         VerificationStep(
             name="Running tests",
@@ -76,10 +80,6 @@ def main():
         VerificationStep(
             name="Running linting",
             command=["pylint", "audiobook_tools"],
-        ),
-        VerificationStep(
-            name="Running type checking",
-            command=["mypy", "audiobook_tools"],
         ),
     ]
 

@@ -100,6 +100,9 @@ def cli(ctx, debug: bool, tui: bool):
 
 
 @dataclass
+# pylint: disable=too-many-instance-attributes
+# This class needs to track all CLI options to provide a complete configuration
+# Breaking it up would make the code harder to use as these options are tightly coupled
 class CliOptions:
     """Container for all CLI options."""
 

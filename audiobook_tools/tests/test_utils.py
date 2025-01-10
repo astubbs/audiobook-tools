@@ -1,7 +1,6 @@
 """Test utilities and common fixtures for audiobook tools tests."""
 
 import re
-from pathlib import Path
 from typing import List, Optional, Tuple
 from unittest.mock import Mock
 
@@ -10,15 +9,20 @@ from audiobook_tools.utils.audio import AudioConfig
 
 
 def create_test_options(
-    input_dir: Path,
-    output_dir: Path,
     title: str = "Test Book",
     artist: str = "Test Author",
-    output_format: str = "m4b-ffmpeg",
     bitrate: str = "64k",
-    dry_run: bool = False,
 ) -> Tuple[AudiobookMetadata, AudioConfig]:
-    """Create common test metadata and audio config."""
+    """Create common test metadata and audio config.
+
+    Args:
+        title: Title of the audiobook
+        artist: Artist/author of the audiobook
+        bitrate: Audio bitrate for encoding
+
+    Returns:
+        Tuple of (AudiobookMetadata, AudioConfig)
+    """
     metadata = AudiobookMetadata(title=title, artist=artist, cover_art=None)
     audio_config = AudioConfig(bitrate=bitrate)
     return metadata, audio_config
