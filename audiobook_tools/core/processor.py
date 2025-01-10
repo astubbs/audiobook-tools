@@ -11,7 +11,11 @@ format to M4B audiobooks with chapters. It handles the complete workflow includi
 Example:
     ```python
     from pathlib import Path
-    from audiobook_tools.core.processor import AudiobookProcessor, ProcessingOptions, AudiobookMetadata
+    from audiobook_tools.core.processor import (
+        AudiobookProcessor,
+        ProcessingOptions,
+        AudiobookMetadata,
+    )
 
     metadata = AudiobookMetadata(
         title="My Audiobook",
@@ -43,8 +47,9 @@ For spoken word audio, the processor uses optimized encoding settings:
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
+from ..common import AudiobookMetadata
 from ..utils.audio import (
     AudioConfig,
     AudioProcessingError,
@@ -56,19 +61,6 @@ from ..utils.audio import (
 from .cue import CueProcessor
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class AudiobookMetadata:
-    """Metadata for an audiobook."""
-
-    title: Optional[str] = None
-    artist: Optional[str] = None
-    cover_art: Optional[Path] = None
-
-    def has_required_metadata(self) -> bool:
-        """Check if the required metadata fields are present."""
-        return bool(self.title and self.artist)
 
 
 @dataclass
@@ -111,11 +103,15 @@ class AudiobookProcessor:
                 for f in self.options.input_dir.rglob("*.flac")
                 if "CD" in f.stem or "cd" in f.stem
             ],
-            key=lambda p: int("".join(filter(str.isdigit, p.stem))),  # Sort by CD number
+            key=lambda p: int(
+                "".join(filter(str.isdigit, p.stem))
+            ),  # Sort by CD number
         )
 
         if not flac_files:
-            raise AudioProcessingError(f"No FLAC files found in {self.options.input_dir}")
+            raise AudioProcessingError(
+                f"No FLAC files found in {self.options.input_dir}"
+            )
 
         return flac_files
 
@@ -173,9 +169,7 @@ class AudiobookProcessor:
                     aac_file,
                     output_file,
                     chapters_file=chapters_file,
-                    title=self.options.metadata.title,
-                    artist=self.options.metadata.artist,
-                    cover_art=self.options.metadata.cover_art,
+                    metadata=self.options.metadata,
                 )
                 return output_file
 

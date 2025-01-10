@@ -47,6 +47,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
+from ..common import AudiobookMetadata
+
 logger = logging.getLogger(__name__)
 
 
@@ -120,20 +122,16 @@ def create_m4b(
     input_file: Path,
     output_file: Path,
     *,  # Force keyword arguments
+    metadata: AudiobookMetadata,
     chapters_file: Optional[Path] = None,
-    title: Optional[str] = None,
-    artist: Optional[str] = None,
-    cover_art: Optional[Path] = None,
 ) -> None:
     """Create an M4B audiobook file with metadata using ffmpeg.
 
     Args:
         input_file: Path to input audio file (should be AAC)
         output_file: Path where the M4B file will be written
+        metadata: Audiobook metadata
         chapters_file: Optional path to FFmpeg metadata file with chapters
-        title: Optional audiobook title
-        artist: Optional audiobook artist/author
-        cover_art: Optional path to cover art image
 
     Raises:
         AudioProcessingError: If there are issues creating the M4B file
@@ -142,14 +140,14 @@ def create_m4b(
         cmd = ["ffmpeg", "-i", str(input_file)]
 
         # Add metadata if provided
-        if title:
-            cmd.extend(["-metadata", f"title={title}"])
-        if artist:
-            cmd.extend(["-metadata", f"artist={artist}"])
+        if metadata.title:
+            cmd.extend(["-metadata", f"title={metadata.title}"])
+        if metadata.artist:
+            cmd.extend(["-metadata", f"artist={metadata.artist}"])
 
         # Add cover art if provided
-        if cover_art:
-            cmd.extend(["-i", str(cover_art), "-map", "0:a", "-map", "1:v"])
+        if metadata.cover_art:
+            cmd.extend(["-i", str(metadata.cover_art), "-map", "0:a", "-map", "1:v"])
 
         # Add chapters if provided
         if chapters_file:
@@ -161,7 +159,9 @@ def create_m4b(
                 "-c:a",
                 "copy",  # Copy audio stream without re-encoding
                 "-c:v",
-                "copy" if cover_art else None,  # Copy video (cover art) if present
+                "copy"
+                if metadata.cover_art
+                else None,  # Copy video (cover art) if present
                 "-f",
                 "mp4",  # Force MP4 container
                 "-y",  # Overwrite output file if it exists

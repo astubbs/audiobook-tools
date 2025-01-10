@@ -164,7 +164,7 @@ def test_process_command_with_mocked_services(
 
 def test_combine_cue_command(
     mock_subprocess: tuple[Mock, Mock], sample_audiobook: Path, tmp_path: Path
-):
+):  # pylint: disable=unused-argument
     """Test combining CUE sheets with mocked services.
 
     Args:

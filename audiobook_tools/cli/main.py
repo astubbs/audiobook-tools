@@ -259,8 +259,12 @@ def process(
                 metadata.cover_art = metadata.cover_art or tui_metadata.get("cover")
             else:
                 metadata.title = metadata.title or click.prompt("Title", default="")
-                metadata.artist = metadata.artist or click.prompt("Artist/Author", default="")
-                if not metadata.cover_art and click.confirm("Add cover art?", default=False):
+                metadata.artist = metadata.artist or click.prompt(
+                    "Artist/Author", default=""
+                )
+                if not metadata.cover_art and click.confirm(
+                    "Add cover art?", default=False
+                ):
                     while True:
                         cover_path = click.prompt("Cover art path")
                         if Path(cover_path).is_file():
@@ -309,26 +313,32 @@ def process(
                     progress.start_task("Converting audio")
                     if output_format != "aac":
                         aac_file = output_dir / "audiobook.aac"
-                        convert_to_aac(combined_flac, aac_file, config=options.audio_config)
+                        convert_to_aac(
+                            combined_flac, aac_file, config=options.audio_config
+                        )
                         output_file = output_dir / "audiobook.m4b"
                         if output_format == "m4b-ffmpeg":
                             create_m4b(
                                 aac_file,
                                 output_file,
                                 chapters_file=chapters_file,
-                                title=metadata.title,
-                                artist=metadata.artist,
-                                cover_art=metadata.cover_art,
+                                metadata=metadata,
                             )
                         else:  # m4b-mp4box
-                            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
+                            create_m4b_mp4box(
+                                aac_file, output_file, chapters_file=chapters_file
+                            )
                     else:
                         output_file = output_dir / "audiobook.aac"
-                        convert_to_aac(combined_flac, output_file, config=options.audio_config)
+                        convert_to_aac(
+                            combined_flac, output_file, config=options.audio_config
+                        )
                     progress.complete_task("Converting audio")
 
             if dry_run:
-                tui_module.console.print("[green]Dry run completed successfully.[/green]")
+                tui_module.console.print(
+                    "[green]Dry run completed successfully.[/green]"
+                )
             else:
                 tui_module.console.print(
                     f"[bold green]Successfully created audiobook:[/bold green] {output_file}"
