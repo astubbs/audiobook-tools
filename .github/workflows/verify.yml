@@ -9,18 +9,16 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    container: python:3.13
+    container: ubuntu:latest
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install system dependencies
+    - name: Install Python and system dependencies
       run: |
         apt-get update
-        echo "deb http://deb.debian.org/debian bookworm-backports main" >> /etc/apt/sources.list
-        apt-get update
-        apt-get install -y -t bookworm-backports gpac
-        apt-get install -y ffmpeg sox
+        apt-get install -y python3.11 python3-pip ffmpeg gpac sox curl
+        ln -s /usr/bin/python3 /usr/bin/python
     
     - name: Install Poetry
       run: |
