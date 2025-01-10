@@ -3,20 +3,36 @@ name: Verify
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - '**.py'
+      - 'poetry.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/**'
   push:
     branches: [ main ]
+    paths:
+      - '**.py'
+      - 'poetry.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/**'
 
 # Cancel in-progress runs for PRs
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
     
     - name: Set up Python 3.13
       uses: actions/setup-python@v5
@@ -56,10 +72,10 @@ jobs:
       run: |
         poetry run pytest
     
-    - name: Check formatting
+    - name: Check formatting and imports
       run: |
         poetry run black --check audiobook_tools
-        poetry run isort --check audiobook_tools
+        poetry run isort --check-only audiobook_tools
     
     - name: Run linting
       run: |
