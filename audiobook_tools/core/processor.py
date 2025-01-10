@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..utils.audio import (
+    AudioConfig,
     AudioProcessingError,
     convert_to_aac,
     create_m4b,
@@ -60,7 +61,7 @@ class ProcessingOptions:
     input_dir: Path
     output_dir: Path
     output_format: str = "m4b-ffmpeg"  # One of: m4b-ffmpeg, m4b-mp4box, aac
-    bitrate: str = "64k"  # Default bitrate optimized for spoken word
+    audio_config: AudioConfig = AudioConfig()  # Use AudioConfig for audio settings
     title: Optional[str] = None
     artist: Optional[str] = None
     cover_art: Optional[Path] = None
@@ -150,10 +151,10 @@ class AudiobookProcessor:
         if self.options.output_format != "aac":
             logger.info("Converting to AAC...")
             aac_file = self.options.output_dir / "audiobook.aac"
-            convert_to_aac(combined_flac, aac_file, bitrate=self.options.bitrate)
+            convert_to_aac(combined_flac, aac_file, config=self.options.audio_config)
 
             # Create M4B with chapters
-            logger.info(f"Creating {self.options.output_format}...")
+            logger.info("Creating %s...", self.options.output_format)
             output_file = self.options.output_dir / "audiobook.m4b"
 
             if self.options.output_format == "m4b-ffmpeg":
@@ -174,5 +175,5 @@ class AudiobookProcessor:
         # Just convert to AAC
         logger.info("Converting to AAC...")
         output_file = self.options.output_dir / "audiobook.aac"
-        convert_to_aac(combined_flac, output_file, bitrate=self.options.bitrate)
+        convert_to_aac(combined_flac, output_file, config=self.options.audio_config)
         return output_file

@@ -1,9 +1,8 @@
 """Terminal User Interface components using rich."""
 
 import logging
-import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import questionary
 from rich.console import Console
@@ -40,10 +39,11 @@ def browse_directory(message: str, default: str = ".") -> Optional[Path]:
                     console.print(f"[dim]  {d.name}/[/dim]")
                 console.print()
         except OSError:
-            # Handle case where directory listing fails
             pass
 
-        console.print("[dim]Navigation: Use Tab to autocomplete, ↑/↓ to view history, Enter to select[/dim]")
+        console.print(
+            "[dim]Navigation: Use Tab to autocomplete, ↑/↓ to view history, Enter to select[/dim]"
+        )
         path = questionary.path(
             message,
             default=str(current),
@@ -60,8 +60,12 @@ def browse_directory(message: str, default: str = ".") -> Optional[Path]:
         return None
 
 
-def display_welcome():
-    """Display the welcome screen and guide user through initial choices."""
+def display_welcome() -> Optional[Dict]:
+    """Display the welcome screen and guide user through initial choices.
+    
+    Returns:
+        Dictionary of user choices or None if cancelled
+    """
     console.print()
     console.print(Panel(
         "[bold blue]Welcome to Audiobook Tools[/bold blue]\n\n"
@@ -226,8 +230,12 @@ class ProcessingProgress:
             )
 
 
-def prompt_metadata() -> dict:
-    """Prompt user for audiobook metadata."""
+def prompt_metadata() -> Dict:
+    """Prompt user for audiobook metadata.
+    
+    Returns:
+        Dictionary containing metadata values
+    """
     console.print()
     console.print("[bold]Please enter audiobook metadata:[/bold]")
     console.print()
@@ -247,9 +255,8 @@ def prompt_metadata() -> dict:
             if cover_path:
                 metadata["cover"] = Path(cover_path)
                 break
-            else:  # User cancelled
-                if not Confirm.ask("Try another file?"):
-                    break
+            if not Confirm.ask("Try another file?"):
+                break
 
     console.print()
     return metadata

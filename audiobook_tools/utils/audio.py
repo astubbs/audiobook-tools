@@ -43,6 +43,7 @@ Error Handling:
 
 import logging
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
@@ -51,6 +52,14 @@ logger = logging.getLogger(__name__)
 
 class AudioProcessingError(Exception):
     """Base exception for audio processing errors."""
+
+
+@dataclass
+class AudioConfig:
+    """Configuration for audio conversion."""
+    bitrate: str = "64k"
+    channels: int = 1  # Mono for spoken word
+    sample_rate: int = 44100
 
 
 def merge_flac_files(input_files: List[Path], output_file: Path) -> None:
@@ -73,18 +82,14 @@ def merge_flac_files(input_files: List[Path], output_file: Path) -> None:
 def convert_to_aac(
     input_file: Path,
     output_file: Path,
-    bitrate: str = "64k",
-    channels: int = 1,
-    sample_rate: int = 44100,
+    config: AudioConfig = AudioConfig(),
 ) -> None:
     """Convert an audio file to AAC format using ffmpeg.
 
     Args:
         input_file: Path to input audio file
         output_file: Path where the AAC file will be written
-        bitrate: Target bitrate (default: "64k")
-        channels: Number of audio channels (default: 1 for mono)
-        sample_rate: Sample rate in Hz (default: 44100)
+        config: Audio configuration settings
 
     Raises:
         AudioProcessingError: If there are issues converting the file
@@ -97,12 +102,12 @@ def convert_to_aac(
             "-c:a",
             "aac",
             "-b:a",
-            bitrate,
+            config.bitrate,
             "-ac",
-            str(channels),
+            str(config.channels),
             "-ar",
-            str(sample_rate),
-            "-y",  # Overwrite output file if it exists
+            str(config.sample_rate),
+            "-y",
             str(output_file),
         ]
         subprocess.run(cmd, check=True, capture_output=True, text=True)

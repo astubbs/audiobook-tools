@@ -1,7 +1,6 @@
 """Tests for CUE sheet combining functionality."""
 
 from pathlib import Path
-import pytest
 from unittest.mock import patch
 
 from audiobook_tools.core.cue import CueProcessor
