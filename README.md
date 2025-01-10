@@ -1,50 +1,76 @@
-# Audio Book Chapter Tool
+# Audiobook Tools
 
-A tool to combine audio files and add chapter markers using CUE sheets.
-
-## Overview
-
-This toolset helps you convert CD rips (FLAC files with CUE sheets) into M4B audiobooks with proper chapter markers. The process involves:
-
-1. Merging multiple FLAC files into a single file
-2. Combining multiple CUE sheets into a single CUE file
-3. Converting CUE chapters into chapter metadata
-4. Creating the final M4B audiobook file
+A command-line tool for processing audiobooks with chapter markers. Convert FLAC+CUE audiobooks to M4B or AAC format with proper chapter markers and metadata.
 
 ## Features
 
-- Combines multiple audio files into a single M4B audiobook
-- Adds chapter markers from CUE sheet
-- Supports both MP4Box and FFmpeg methods for chapter embedding
-- Can use existing AAC files to avoid re-encoding
+- Merge multiple FLAC files into a single audiobook
+- Process CUE sheets for chapter information
+- Convert to M4B with chapters or AAC format
+- Add metadata (title, artist, cover art)
+- Beautiful terminal interface with progress tracking
+- Support for both FFmpeg and MP4Box processing methods
+- Optimized settings for spoken word audio (mono, 64k bitrate)
+- Dry run mode to preview changes
 
-## Requirements
+## Quick Start
 
-- Python 3.x
-- ffprobe (part of ffmpeg) for reading audio file durations
-- FFmpeg for creating M4B audiobooks
-- MP4Box (optional alternative method)
-- sox (for merging FLAC files)
+```bash
+# Install dependencies
+brew install ffmpeg gpac sox poetry  # macOS
+sudo apt-get install ffmpeg gpac sox python3-poetry  # Ubuntu/Debian
+
+# Clone and set up
+git clone https://github.com/yourusername/audiobook-tools.git
+cd audiobook-tools
+poetry install
+
+# Run the tool
+poetry run audiobook-tools
+```
+
+The tool will launch with an interactive Terminal User Interface (TUI) that will guide you through the process step by step.
 
 ## Installation
 
-1. Install the required Python packages:
-```bash
-pip install -r requirements.txt
-```
+### Prerequisites
 
-2. Install system dependencies:
+Install system dependencies:
+
 ```bash
 # macOS (using Homebrew)
-brew install ffmpeg mp4box sox
+brew install ffmpeg gpac sox poetry
 
 # Ubuntu/Debian
-sudo apt-get install ffmpeg gpac sox
+sudo apt-get install ffmpeg gpac sox python3-poetry
 ```
 
-## Usage
+### Using Poetry (recommended)
+```bash
+# Clone and install
+git clone https://github.com/yourusername/audiobook-tools.git
+cd audiobook-tools
+poetry install
 
-### Directory Structure
+# If using fish shell, you must activate the virtualenv first:
+poetry env activate  # This will show the source command
+source /path/to/virtualenv/bin/activate.fish
+
+# Run the tool
+audiobook-tools
+```
+
+> **Note for fish shell users**: Due to [known issues with Poetry and fish shell](https://github.com/python-poetry/poetry-plugin-shell/issues/7), 
+> you need to activate the virtualenv manually using `source` instead of using `poetry run`. This ensures the correct Python environment 
+> is used and avoids path management issues that can occur when Poetry tries to manage shell execution directly.
+
+### System Requirements
+- Python 3.8 or later
+- FFmpeg (for audio processing)
+- sox (for FLAC merging)
+- MP4Box (optional, for alternative M4B creation)
+
+## Directory Structure
 
 Place your audiobook files in a directory structure like:
 
@@ -59,156 +85,84 @@ Place your audiobook files in a directory structure like:
   └── ...
 ```
 
-### Automated Processing
+## Usage
 
-The easiest way to process your audiobook is to use the included script:
+### Basic Usage
+Simply run the tool and follow the interactive prompts:
+```bash
+audiobook-tools
+```
+
+The Terminal User Interface (TUI) will guide you through:
+1. Selecting your audiobook directory
+2. Choosing an output directory
+3. Selecting output format
+4. Adding metadata (title, artist, cover art)
+5. Processing the audiobook
+
+### Command Line Options
+For automation or advanced usage, you can explore the available options:
 
 ```bash
-./process_audiobook.sh
+# Show all available commands
+audiobook-tools --help
+
+# Show options for a specific command
+audiobook-tools process --help
+audiobook-tools combine-cue --help
 ```
 
-This script will guide you through each step with confirmation prompts.
-
-### Manual Steps
-
-If you prefer to run the steps manually:
-
-1. Merge FLAC files:
-```bash
-./merge_flac.sh
-```
-
-2. Generate combined CUE file:
-```bash
-python combine_cue.py
-```
-
-3. Generate chapter metadata and create M4B file using one of these methods:
-
-#### Using FFmpeg (Recommended)
-
-1. If you have an existing AAC file:
-```bash
-python cue-to-ffmpeg.py --input-aac "./out/your-audio.aac"
-```
-
-2. If you want to convert from FLAC:
-```bash
-python cue-to-ffmpeg.py
-```
-
-This will:
-- Read the CUE file from `./out/combined.cue`
-- Create a chapters file in FFmpeg metadata format
-- Create an M4B audiobook with embedded chapters
-
-#### Using MP4Box (Alternative)
+Example usage without TUI:
 
 ```bash
-python cue-to-mp4b.py
+# Process without TUI
+audiobook-tools process ./audiobook-dir \
+    --no-tui \
+    --output-dir ./out \
+    --output-format m4b-ffmpeg \
+    --bitrate 64k \
+    --title "Book Title" \
+    --artist "Author Name" \
+    --cover cover.jpg
+
+# Preview what would happen
+audiobook-tools process ./audiobook-dir --dry-run
+
+# Just combine CUE sheets
+audiobook-tools combine-cue ./audiobook-dir ./output-dir
 ```
 
-This will:
-- Read the CUE file from `./out/combined.cue`
-- Create a chapters file in MP4Box format
-- Create an M4B audiobook with embedded chapters
+### Interface Options
+- `--tui/--no-tui`: Enable/disable Terminal User Interface (default: enabled)
+- `--interactive/--no-interactive`: Enable/disable interactive prompts (default: enabled)
+- `--debug`: Enable debug logging
+- `--dry-run`: Show what would be done without making changes
 
-### Updating Chapters Only
+### Output Formats
+- `m4b-ffmpeg`: M4B file with chapters using FFmpeg (recommended)
+- `m4b-mp4box`: M4B file with chapters using MP4Box
+- `aac`: AAC audio file without chapters
 
-If you need to update just the chapter metadata without re-encoding the audio:
+## Troubleshooting
+
+### Common Issues
+
+1. **No FLAC files found**: Ensure your FLAC files have "CD" in their names and are in the correct directory structure.
+2. **Invalid CUE format**: Check that your CUE files are properly formatted and use UTF-8 encoding.
+3. **FFmpeg errors**: Make sure you have FFmpeg installed with AAC support.
+
+### Debug Mode
+
+Run commands with `--debug` for detailed logging:
 
 ```bash
-MP4Box -chap "./out/chapters.txt" "./out/audiobook.m4b"
+audiobook-tools --debug process ./audiobook-dir
 ```
 
-## Technical Details
+## Contributing
 
-### Chapter Formats
+For development setup and guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
-MP4/M4B files support multiple chapter formats:
-- QuickTime chapter format (used by iTunes/Apple)
-- Nero chapter format
-- FFmpeg metadata format
-- MP4Box chapter format
+## License
 
-This toolset supports two methods:
-1. FFmpeg metadata format (recommended) - Better compatibility with audio players
-2. MP4Box format (alternative) - Widely supported but may have issues with some players
-
-### CD Frame Format
-
-In CD audio:
-- There are exactly 75 frames per second
-- Time format is MM:SS:FF (minutes:seconds:frames)
-- This tool handles the conversion from CD frames to milliseconds for accurate chapter markers
-
-## Project Architecture
-
-### Core Components
-
-1. `merge_flac.sh` - Audio merger
-   - Combines multiple FLAC files into one
-   - Uses sox for lossless audio concatenation
-   - Preserves audio quality
-
-2. `combine_cue.py` - Main CUE combiner
-   - Handles file discovery and processing
-   - Manages CUE file combination logic
-   - Core functions:
-     - `time_to_seconds()`: Converts CUE time format (MM:SS:FF) to seconds
-     - `seconds_to_time()`: Converts seconds back to CUE time format
-     - `calculate_cumulative_duration()`: Calculates start times for each CD
-     - `get_audio_length()`: Gets audio file duration using ffprobe
-
-3. `cue-to-ffmpeg.py` - FFmpeg chapter converter
-   - Converts combined CUE to FFmpeg metadata format
-   - Handles time format conversion from CUE to milliseconds
-   - Creates chapter markers for audiobook
-   - Can use existing AAC files to avoid re-encoding
-
-4. `cue-to-mp4b.py` - MP4Box chapter converter
-   - Converts combined CUE to MP4Box chapter format
-   - Alternative method for chapter embedding
-
-5. `tests/test_combine_cue.py` - Test suite
-   - Unit tests for time conversion functions
-   - Integration tests for CD start time calculations
-   - Mock tests for audio file duration handling
-
-### Time Format Handling
-
-The project handles multiple time formats:
-- CUE format: `MM:SS:FF` (75 frames per second)
-- FFmpeg format: Milliseconds with TIMEBASE=1/1000
-- MP4B format: `HH:MM:SS.mmm` (millisecond precision)
-- Internal calculations use milliseconds for accuracy
-
-## Output Directory Structure
-
-All output files are stored in the `./out` directory:
-
-```
-.
-├── cue-to-ffmpeg.py  # FFmpeg-based chapter embedding
-├── cue-to-mp4b.py    # MP4Box-based chapter embedding
-└── out/
-    ├── combined.flac     # Merged audio file
-    ├── combined.cue      # Combined CUE sheet
-    ├── chapters.txt      # Generated chapter metadata
-    └── audiobook.m4b     # Final audiobook file
-```
-
-## Development
-
-### Testing
-
-Run the test suite to verify the time conversion functions:
-```bash
-python -m pytest tests/
-```
-
-Key test cases:
-1. Time conversion accuracy
-2. CD2 start time calculation
-3. Frame rounding behavior
-4. Edge cases (00:00:00, 00:00:74, etc.) 
+This project is licensed under the MIT License - see the LICENSE file for details. 

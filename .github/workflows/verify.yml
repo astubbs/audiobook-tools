@@ -1,0 +1,86 @@
+name: Verify
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '**.py'
+      - 'poetry.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/**'
+  push:
+    branches: [ main ]
+    paths:
+      - '**.py'
+      - 'poetry.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/**'
+
+# Cancel in-progress runs for PRs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+        cache: 'pip'
+    
+    - name: Cache Poetry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/pypoetry
+          .venv
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg gpac sox
+    
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+        poetry config virtualenvs.in-project true
+    
+    - name: Update Poetry lock file
+      run: |
+        poetry lock
+    
+    - name: Install dependencies
+      run: |
+        poetry install --no-interaction --with dev
+    
+    - name: Run tests
+      run: |
+        poetry run pytest
+    
+    - name: Check formatting and imports
+      run: |
+        poetry run black --check audiobook_tools
+        poetry run isort --check-only audiobook_tools
+    
+    - name: Run linting
+      run: |
+        poetry run pylint audiobook_tools
+    
+    - name: Run type checking
+      run: |
+        poetry run mypy audiobook_tools 
