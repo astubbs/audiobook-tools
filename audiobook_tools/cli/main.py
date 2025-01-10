@@ -8,6 +8,7 @@ Dependencies:
 """
 
 import logging
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -23,6 +24,7 @@ from ..utils.audio import (
     create_m4b,
     create_m4b_mp4box,
     merge_flac_files,
+    merge_mp3_files,
 )
 from . import tui as tui_module
 
@@ -235,7 +237,7 @@ def process(
 ):
     """Process an audiobook directory into a single file with chapters.
 
-    INPUT_DIR is the directory containing the audiobook files and CUE sheets.
+    INPUT_DIR is the directory containing the audiobook files (FLAC+CUE or MP3).
     """
     cmd_options = ProcessCommandOptions(
         input_dir=input_dir,
@@ -256,13 +258,13 @@ def process(
         if ctx.obj.use_tui:
             tui_module.display_header("Processing Audiobook")
 
-        flac_files = processor.find_flac_files()
+        audio_files = processor.find_audio_files()
 
         if interactive:
-            if not confirm_processing(ctx, flac_files, output_dir):
+            if not confirm_processing(ctx, audio_files, output_dir):
                 return
 
-        process_audiobook(processor, options, flac_files, interactive=interactive)
+        process_audiobook(processor, options, audio_files, interactive=interactive)
 
     except (AudioProcessingError, CueProcessingError) as e:
         logger.error(str(e))
@@ -315,13 +317,13 @@ def create_processor(options: ProcessingOptions) -> AudiobookProcessor:
 
 
 def confirm_processing(
-    ctx: click.Context, flac_files: List[Path], output_dir: Path
+    ctx: click.Context, audio_files: List[Path], output_dir: Path
 ) -> bool:
     """Confirm processing with the user, showing a summary of files and output directory."""
     if ctx.obj.use_tui:
-        return tui_module.confirm_processing(flac_files, output_dir)
+        return tui_module.confirm_processing(audio_files, output_dir)
     click.echo("\nProcessing Summary:")
-    for i, file in enumerate(flac_files, 1):
+    for i, file in enumerate(audio_files, 1):
         size = file.stat().st_size / (1024 * 1024)
         click.echo(f"{i}. {file} ({size:.1f} MB)")
     click.echo(f"\nOutput directory: {output_dir}")
@@ -331,7 +333,7 @@ def confirm_processing(
 def process_audiobook(
     processor: AudiobookProcessor,
     options: ProcessingOptions,
-    flac_files: List[Path],
+    audio_files: List[Path],
     interactive: bool = True,
 ):
     """Process the audiobook with or without progress tracking based on TUI usage."""
@@ -342,7 +344,7 @@ def process_audiobook(
                 processor.process()
                 progress.complete_task("Dry run")
             else:
-                process_with_progress(progress, options, flac_files)
+                process_with_progress(progress, options, audio_files)
     else:
         if options.dry_run:
             click.echo("Starting dry run...")
@@ -359,23 +361,35 @@ def process_audiobook(
 def process_with_progress(
     progress: tui_module.ProcessingProgress,
     options: ProcessingOptions,
-    flac_files: List[Path],
+    audio_files: List[Path],
 ):
     """Process the audiobook with progress tracking, handling each step sequentially."""
-    progress.start_task("Merging FLAC files")
-    combined_flac = options.output_dir / "combined.flac"
-    merge_flac_files(flac_files, combined_flac)
-    progress.complete_task("Merging FLAC files")
+    is_mp3 = audio_files[0].suffix.lower() == ".mp3"
 
-    progress.start_task("Processing CUE sheets")
-    cue_processor = CueProcessor(options.input_dir, options.output_dir)
-    chapters_file = cue_processor.process_directory()
-    progress.complete_task("Processing CUE sheets")
+    # Merge audio files
+    progress.start_task(f"Merging {'MP3' if is_mp3 else 'FLAC'} files")
+    if is_mp3:
+        combined_audio = options.output_dir / "combined.mp3"
+        merge_mp3_files(audio_files, combined_audio)
+    else:
+        combined_audio = options.output_dir / "combined.flac"
+        merge_flac_files(audio_files, combined_audio)
+    progress.complete_task(f"Merging {'MP3' if is_mp3 else 'FLAC'} files")
+
+    # Process chapters
+    progress.start_task("Processing chapters")
+    if is_mp3:
+        processor = AudiobookProcessor(options)
+        chapters_file = processor.extract_chapters_from_filenames(audio_files)
+    else:
+        cue_processor = CueProcessor(options.input_dir, options.output_dir)
+        chapters_file = cue_processor.process_directory()
+    progress.complete_task("Processing chapters")
 
     progress.start_task("Converting audio")
     if options.output_format != "aac":
         aac_file = options.output_dir / "audiobook.aac"
-        convert_to_aac(combined_flac, aac_file, config=options.audio_config)
+        convert_to_aac(combined_audio, aac_file, config=options.audio_config)
         output_file = options.output_dir / "audiobook.m4b"
         if options.output_format == "m4b-ffmpeg":
             create_m4b(
@@ -388,7 +402,7 @@ def process_with_progress(
             create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
     else:
         output_file = options.output_dir / "audiobook.aac"
-        convert_to_aac(combined_flac, output_file, config=options.audio_config)
+        convert_to_aac(combined_audio, output_file, config=options.audio_config)
     progress.complete_task("Converting audio")
 
 

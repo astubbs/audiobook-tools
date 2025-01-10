@@ -45,6 +45,8 @@ For spoken word audio, the processor uses optimized encoding settings:
 """
 
 import logging
+import re
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
@@ -57,6 +59,7 @@ from ..utils.audio import (
     create_m4b,
     create_m4b_mp4box,
     merge_flac_files,
+    merge_mp3_files,
 )
 from .cue import CueProcessor
 
@@ -87,14 +90,27 @@ class AudiobookProcessor:
         self.options = options
         self.options.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def find_flac_files(self) -> List[Path]:
-        """Find all FLAC files in the input directory.
+    @staticmethod
+    def _extract_track_number(filename: Path) -> int:
+        """Extract track number from MP3 filename.
+        
+        Args:
+            filename: Path to MP3 file
+            
+        Returns:
+            Track number as integer, or 0 if not found
+        """
+        match = re.search(r" - (\d+) -", filename.stem)
+        return int(match.group(1)) if match else 0
+
+    def find_audio_files(self) -> List[Path]:
+        """Find all audio files in the input directory.
 
         Returns:
-            List of paths to FLAC files, sorted by CD number
+            List of paths to audio files, sorted by CD/track number
 
         Raises:
-            AudioProcessingError: If no FLAC files are found
+            AudioProcessingError: If no audio files are found
         """
         # Find all FLAC files that match CD patterns
         flac_files = sorted(
@@ -108,19 +124,70 @@ class AudiobookProcessor:
             ),  # Sort by CD number
         )
 
-        if not flac_files:
+        if flac_files:
+            return flac_files
+
+        # If no FLAC files found, look for MP3 files
+        mp3_files = sorted(
+            list(self.options.input_dir.glob("*.mp3")),
+            key=self._extract_track_number,
+        )
+
+        if not mp3_files:
             raise AudioProcessingError(
-                f"No FLAC files found in {self.options.input_dir}"
+                f"No FLAC or MP3 files found in {self.options.input_dir}"
             )
 
-        return flac_files
+        return mp3_files
+
+    def extract_chapters_from_filenames(self, mp3_files: List[Path]) -> Path:
+        """Extract chapter information from MP3 filenames.
+
+        Args:
+            mp3_files: List of paths to MP3 files
+
+        Returns:
+            Path to the generated chapters file
+
+        Raises:
+            AudioProcessingError: If chapter information cannot be extracted
+        """
+        chapters_file = self.options.output_dir / "chapters.txt"
+        pattern = re.compile(r".*? - (\d+) - (Chapter \d+.*?)\.mp3$")
+
+        with open(chapters_file, "w", encoding="utf-8") as f:
+            current_time = 0
+            for mp3_file in mp3_files:
+                match = pattern.search(str(mp3_file))
+                if not match:
+                    continue
+
+                # Get chapter title
+                chapter_title = match.group(2)
+
+                # Write chapter marker
+                f.write(
+                    f"{current_time // 3600:02d}:{(current_time % 3600) // 60:02d}:{current_time % 60:02d} {chapter_title}\n"
+                )
+
+                # Get duration of MP3 file using ffmpeg
+                cmd = ["ffmpeg", "-i", str(mp3_file), "-f", "null", "-"]
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                duration_match = re.search(
+                    r"Duration: (\d{2}):(\d{2}):(\d{2})", result.stderr
+                )
+                if duration_match:
+                    hours, minutes, seconds = map(int, duration_match.groups())
+                    current_time += hours * 3600 + minutes * 60 + seconds
+
+        return chapters_file
 
     def process(self) -> Path:
         """Process the audiobook files.
 
         This method:
-        1. Finds and merges FLAC files
-        2. Processes CUE sheets
+        1. Finds audio files (FLAC or MP3)
+        2. Processes chapters (from CUE sheets or filenames)
         3. Converts to AAC (if needed)
         4. Creates final M4B with chapters
 
@@ -132,33 +199,47 @@ class AudiobookProcessor:
         """
         logger.info("Starting audiobook processing...")
 
-        # Find FLAC files
-        flac_files = self.find_flac_files()
-        logger.info("Found %d FLAC files", len(flac_files))
+        # Find audio files
+        audio_files = self.find_audio_files()
+        is_mp3 = audio_files[0].suffix.lower() == ".mp3"
+        logger.info("Found %d %s files", len(audio_files), "MP3" if is_mp3 else "FLAC")
 
         # Show files that will be processed
-        for i, file in enumerate(flac_files, 1):
+        for i, file in enumerate(audio_files, 1):
             logger.info("%d. %s", i, file)
 
         if self.options.dry_run:
             logger.info("Dry run complete. No files were processed.")
             return Path()
 
-        # Merge FLAC files
-        combined_flac = self.options.output_dir / "combined.flac"
-        logger.info("Merging FLAC files...")
-        merge_flac_files(flac_files, combined_flac)
+        # Process files based on type
+        if is_mp3:
+            # For MP3 files, merge them and extract chapters from filenames
+            combined_audio = self.options.output_dir / "combined.mp3"
+            logger.info("Merging MP3 files...")
+            merge_mp3_files(audio_files, combined_audio)
 
-        # Process CUE sheets
-        logger.info("Processing CUE sheets...")
-        cue_processor = CueProcessor(self.options.input_dir, self.options.output_dir)
-        chapters_file = cue_processor.process_directory()
+            # Extract chapters from filenames
+            logger.info("Processing chapter information from filenames...")
+            chapters_file = self.extract_chapters_from_filenames(audio_files)
+        else:
+            # For FLAC files, use existing merge and CUE processing
+            combined_audio = self.options.output_dir / "combined.flac"
+            logger.info("Merging FLAC files...")
+            merge_flac_files(audio_files, combined_audio)
+
+            # Process CUE sheets
+            logger.info("Processing CUE sheets...")
+            cue_processor = CueProcessor(
+                self.options.input_dir, self.options.output_dir
+            )
+            chapters_file = cue_processor.process_directory()
 
         # Convert to AAC if needed
         if self.options.output_format != "aac":
             logger.info("Converting to AAC...")
             aac_file = self.options.output_dir / "audiobook.aac"
-            convert_to_aac(combined_flac, aac_file, config=self.options.audio_config)
+            convert_to_aac(combined_audio, aac_file, config=self.options.audio_config)
 
             # Create M4B with chapters
             logger.info("Creating %s...", self.options.output_format)
@@ -180,5 +261,5 @@ class AudiobookProcessor:
         # Just convert to AAC
         logger.info("Converting to AAC...")
         output_file = self.options.output_dir / "audiobook.aac"
-        convert_to_aac(combined_flac, output_file, config=self.options.audio_config)
+        convert_to_aac(combined_audio, output_file, config=self.options.audio_config)
         return output_file

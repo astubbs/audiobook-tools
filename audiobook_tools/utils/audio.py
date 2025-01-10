@@ -232,3 +232,35 @@ def extract_cover_art(input_file: Path, output_file: Path) -> None:
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         raise AudioProcessingError(f"Failed to extract cover art: {e.stderr}") from e
+
+
+def merge_mp3_files(input_files: List[Path], output_file: Path) -> None:
+    """Merge multiple MP3 files into a single file using ffmpeg.
+
+    Args:
+        input_files: List of paths to input MP3 files
+        output_file: Path where the merged file will be written
+
+    Raises:
+        AudioProcessingError: If there are issues merging the files
+    """
+    try:
+        # Create concat file
+        concat_file = output_file.parent / "concat.txt"
+        with open(concat_file, "w", encoding="utf-8") as f:
+            for file in input_files:
+                f.write(f"file '{file.absolute()}'\n")
+
+        # Merge files
+        cmd = [
+            "ffmpeg",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(concat_file),
+            "-c", "copy",
+            str(output_file)
+        ]
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+    except (subprocess.CalledProcessError, IOError) as e:
+        raise AudioProcessingError(f"Failed to merge MP3 files: {str(e)}") from e
