@@ -131,18 +131,12 @@ class CueProcessor:
                 f"Invalid ffprobe output for: {audio_file_path}"
             ) from e
 
+    # pylint: disable=too-many-locals,too-many-branches
+    # This method needs many variables to properly parse CUE files
+    # and many branches to handle different CUE sheet directives.
+    # Breaking it up would make the code harder to understand.
     def parse_cue_file(self, cue_path: Path) -> CueSheet:
-        """Parse a CUE file into a structured format.
-
-        Args:
-            cue_path: Path to the CUE file
-
-        Returns:
-            CueSheet object representing the parsed CUE file
-
-        Raises:
-            InvalidCueFormatError: If CUE file format is invalid
-        """
+        """Parse a CUE file and return a CueSheet object."""
         try:
             with open(cue_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -158,7 +152,10 @@ class CueProcessor:
         if not file_match:
             raise InvalidCueFormatError(f"No FILE directive found in: {cue_path}")
 
-        audio_file = re.search(r'FILE\s+"([^"]+)"', file_match).group(1)
+        file_regex_match = re.search(r'FILE\s+"([^"]+)"', file_match)
+        if not file_regex_match:
+            raise InvalidCueFormatError(f"Invalid FILE directive format in: {cue_path}")
+        audio_file = file_regex_match.group(1)
 
         # Parse tracks
         tracks = []
@@ -170,23 +167,32 @@ class CueProcessor:
             if line.startswith("TRACK"):
                 if current_track:
                     tracks.append(current_track)
-                track_num = int(re.search(r"TRACK\s+(\d+)\s+AUDIO", line).group(1))
+                track_match = re.search(r"TRACK\s+(\d+)\s+AUDIO", line)
+                if not track_match:
+                    raise InvalidCueFormatError(
+                        f"Invalid TRACK directive format in: {cue_path}"
+                    )
+                track_num = int(track_match.group(1))
                 current_track = Track(
                     number=track_num, title=None, performer=None, index={}
                 )
 
             elif current_track:
                 if line.startswith("TITLE"):
-                    current_track.title = re.search(r'TITLE\s+"([^"]+)"', line).group(1)
+                    title_match = re.search(r'TITLE\s+"([^"]+)"', line)
+                    if title_match:
+                        current_track.title = title_match.group(1)
                 elif line.startswith("PERFORMER"):
-                    current_track.performer = re.search(
-                        r'PERFORMER\s+"([^"]+)"', line
-                    ).group(1)
+                    performer_match = re.search(r'PERFORMER\s+"([^"]+)"', line)
+                    if performer_match:
+                        current_track.performer = performer_match.group(1)
                 elif line.startswith("INDEX"):
-                    match = re.search(r"INDEX\s+(\d+)\s+(\d{2}:\d{2}:\d{2})", line)
-                    if match:
-                        index_num = int(match.group(1))
-                        current_track.index[index_num] = match.group(2)
+                    index_match = re.search(
+                        r"INDEX\s+(\d+)\s+(\d{2}:\d{2}:\d{2})", line
+                    )
+                    if index_match:
+                        index_num = int(index_match.group(1))
+                        current_track.index[index_num] = index_match.group(2)
 
         if current_track:
             tracks.append(current_track)
@@ -250,10 +256,15 @@ class CueProcessor:
         Raises:
             CueProcessingError: If there are issues processing the directory
         """
+
         # Find all CUE files
+        def get_cd_number(path: Path) -> int:
+            match = re.search(r"CD(\d+)", str(path))
+            return int(match.group(1)) if match else 0
+
         cue_files = sorted(
             self.base_dir.rglob("*.cue"),
-            key=lambda p: int(re.search(r"CD(\d+)", str(p)).group(1)),
+            key=get_cd_number,
         )
 
         if not cue_files:

@@ -314,8 +314,9 @@ def create_processor(options: ProcessingOptions) -> AudiobookProcessor:
     return AudiobookProcessor(options)
 
 
-@click.pass_context
-def confirm_processing(ctx, flac_files: List[Path], output_dir: Path) -> bool:
+def confirm_processing(
+    ctx: click.Context, flac_files: List[Path], output_dir: Path
+) -> bool:
     """Confirm processing with the user, showing a summary of files and output directory."""
     if ctx.obj.use_tui:
         return tui_module.confirm_processing(flac_files, output_dir)
@@ -341,7 +342,7 @@ def process_audiobook(
                 processor.process()
                 progress.complete_task("Dry run")
             else:
-                process_with_progress(options, flac_files, progress)
+                process_with_progress(progress, options, flac_files)
     else:
         if options.dry_run:
             click.echo("Starting dry run...")
@@ -355,11 +356,10 @@ def process_audiobook(
             )
 
 
-@click.pass_context
 def process_with_progress(
+    progress: tui_module.ProcessingProgress,
     options: ProcessingOptions,
     flac_files: List[Path],
-    progress,
 ):
     """Process the audiobook with progress tracking, handling each step sequentially."""
     progress.start_task("Merging FLAC files")

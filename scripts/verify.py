@@ -52,6 +52,14 @@ def main():
         failures.append("Running linting (pylint)")
         sys.exit(1)
 
+    # Run type checking
+    success, _ = run_command(
+        ["mypy", "audiobook_tools"], "Running type checking (mypy)"
+    )
+    if not success:
+        failures.append("Running type checking (mypy)")
+        sys.exit(1)
+
     if failures:
         print("\n❌ Some verification steps failed:")
         for failure in failures:

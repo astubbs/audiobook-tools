@@ -3,7 +3,7 @@
 import logging
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import questionary
 from rich.console import Console
@@ -233,7 +233,7 @@ class ProcessingProgress:
             )
 
 
-def prompt_metadata() -> Dict:
+def prompt_metadata() -> Dict[str, Union[str, Optional[Path]]]:
     """Prompt user for audiobook metadata.
 
     Returns:
@@ -243,20 +243,20 @@ def prompt_metadata() -> Dict:
     console.print("[bold]Please enter audiobook metadata:[/bold]")
     console.print()
 
-    metadata = {
+    metadata: Dict[str, Union[str, Optional[Path]]] = {
         "title": Prompt.ask("Title", default=""),
         "artist": Prompt.ask("Artist/Author", default=""),
     }
 
     if Prompt.ask("Add cover art?", choices=["y", "n"], default="n") == "y":
         while True:
-            cover_path = questionary.path(
+            cover_path_str = questionary.path(
                 "Select cover art image",
                 validate=lambda p: Path(p).is_file() or "Please select a valid file",
             ).ask()
 
-            if cover_path:
-                metadata["cover"] = Path(cover_path)
+            if cover_path_str:
+                metadata["cover"] = Path(cover_path_str)
                 break
             if not Confirm.ask("Try another file?"):
                 break

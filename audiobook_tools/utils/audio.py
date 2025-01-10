@@ -154,14 +154,18 @@ def create_m4b(
             cmd.extend(["-i", str(chapters_file), "-map_metadata", "1"])
 
         # Output options
-        cmd.extend(
+        output_opts = [
+            "-c:a",
+            "copy",  # Copy audio stream without re-encoding
+        ]
+
+        # Add video codec option only if we have cover art
+        if metadata.cover_art:
+            output_opts.extend(["-c:v", "copy"])
+
+        # Add container format and output file
+        output_opts.extend(
             [
-                "-c:a",
-                "copy",  # Copy audio stream without re-encoding
-                "-c:v",
-                "copy"
-                if metadata.cover_art
-                else None,  # Copy video (cover art) if present
                 "-f",
                 "mp4",  # Force MP4 container
                 "-y",  # Overwrite output file if it exists
@@ -169,8 +173,7 @@ def create_m4b(
             ]
         )
 
-        # Remove None values from command
-        cmd = [arg for arg in cmd if arg is not None]
+        cmd.extend(output_opts)
 
         subprocess.run(cmd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
