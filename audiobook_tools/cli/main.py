@@ -126,40 +126,65 @@ class CliOptions:
 
 
 @dataclass
-# pylint: disable=too-many-instance-attributes
-# This class needs many attributes to fully represent all CLI options.
-# Breaking it up would make the code less maintainable as these options are tightly coupled.
-class ProcessCommandOptions:
-    """Options for the process command."""
+class PathOptions:
+    """Path-related options for processing."""
 
     input_dir: Path
     output_dir: Path
+
+
+@dataclass
+class FormatOptions:
+    """Format-related options for processing."""
+
     output_format: str
     bitrate: str
+
+
+@dataclass
+class MetadataOptions:
+    """Metadata-related options for processing."""
+
     title: Optional[str]
     artist: Optional[str]
     cover: Optional[Path]
+
+
+@dataclass
+class ProcessFlags:
+    """Processing control flags."""
+
     dry_run: bool
     interactive: bool
     resume: bool
 
+
+@dataclass
+class ProcessCommandOptions:
+    """Options for the process command."""
+
+    paths: PathOptions
+    format: FormatOptions
+    metadata: MetadataOptions
+    flags: ProcessFlags
+
     def to_cli_options(self) -> CliOptions:
         """Convert to CliOptions."""
-        audio_config = AudioConfig(bitrate=self.bitrate)
+        audio_config = AudioConfig(bitrate=self.format.bitrate)
         metadata = AudiobookMetadata(
-            title=self.title,
-            artist=self.artist,
-            cover_art=self.cover,
+            title=self.metadata.title,
+            artist=self.metadata.artist,
+            cover_art=self.metadata.cover,
         )
         return CliOptions(
-            input_dir=self.input_dir,
-            output_dir=self.output_dir,
-            output_format=self.output_format,
+            input_dir=self.paths.input_dir,
+            output_dir=self.paths.output_dir,
+            output_format=self.format.output_format,
             audio_config=audio_config,
             metadata=metadata,
-            dry_run=self.dry_run,
-            interactive=self.interactive,
-            resume=self.resume,
+            dry_run=self.flags.dry_run,
+            interactive=self.flags.interactive,
+            resume=self.flags.resume,
         )
 
 
@@ -250,16 +275,10 @@ def process(
     INPUT_DIR is the directory containing the audiobook files (FLAC+CUE or MP3).
     """
     cmd_options = ProcessCommandOptions(
-        input_dir=input_dir,
-        output_dir=output_dir,
-        output_format=output_format,
-        bitrate=bitrate,
-        title=title,
-        artist=artist,
-        cover=cover,
-        dry_run=dry_run,
-        interactive=interactive,
-        resume=resume,
+        paths=PathOptions(input_dir=input_dir, output_dir=output_dir),
+        format=FormatOptions(output_format=output_format, bitrate=bitrate),
+        metadata=MetadataOptions(title=title, artist=artist, cover=cover),
+        flags=ProcessFlags(dry_run=dry_run, interactive=interactive, resume=resume),
     )
     cli_options = cmd_options.to_cli_options()
     options = cli_options.to_processing_options()
@@ -369,31 +388,36 @@ def process_audiobook(
             )
 
 
-def process_with_progress(
+def merge_audio_files(
     progress: tui_module.ProcessingProgress,
     options: ProcessingOptions,
     audio_files: List[Path],
-):
-    """Process the audiobook with progress tracking, handling each step sequentially."""
-    is_mp3 = audio_files[0].suffix.lower() == ".mp3"
+    is_mp3: bool,
+) -> Path:
+    """Merge audio files with progress tracking."""
+    file_type = "MP3" if is_mp3 else "FLAC"
+    progress.start_task(f"Merging {file_type} files")
 
-    # Merge audio files
-    progress.start_task(f"Merging {'MP3' if is_mp3 else 'FLAC'} files")
-    if is_mp3:
-        combined_audio = options.output_dir / "combined.mp3"
-        if not (options.resume and combined_audio.exists()):
+    combined_audio = options.output_dir / f"combined.{file_type.lower()}"
+    if not (options.resume and combined_audio.exists()):
+        if is_mp3:
             merge_mp3_files(audio_files, combined_audio)
         else:
-            logger.info("Using existing combined MP3 file: %s", combined_audio)
-    else:
-        combined_audio = options.output_dir / "combined.flac"
-        if not (options.resume and combined_audio.exists()):
             merge_flac_files(audio_files, combined_audio)
-        else:
-            logger.info("Using existing combined FLAC file: %s", combined_audio)
-    progress.complete_task(f"Merging {'MP3' if is_mp3 else 'FLAC'} files")
+    else:
+        logger.info("Using existing combined %s file: %s", file_type, combined_audio)
 
-    # Process chapters
+    progress.complete_task(f"Merging {file_type} files")
+    return combined_audio
+
+
+def process_chapters(
+    progress: tui_module.ProcessingProgress,
+    options: ProcessingOptions,
+    audio_files: List[Path],
+    is_mp3: bool,
+) -> Path:
+    """Process chapters with progress tracking."""
     progress.start_task("Processing chapters")
     if is_mp3:
         processor = AudiobookProcessor(options)
@@ -402,28 +426,62 @@ def process_with_progress(
         cue_processor = CueProcessor(options.input_dir, options.output_dir)
         chapters_file = cue_processor.process_directory()
     progress.complete_task("Processing chapters")
+    return chapters_file
 
+
+def convert_audio(
+    progress: tui_module.ProcessingProgress,
+    options: ProcessingOptions,
+    combined_audio: Path,
+    chapters_file: Path,
+) -> Path:
+    """Convert audio to final format with progress tracking."""
     progress.start_task("Converting audio")
-    if options.output_format != "aac":
-        aac_file = options.output_dir / "audiobook.aac"
-        if not (options.resume and aac_file.exists()):
-            convert_to_aac(combined_audio, aac_file, config=options.audio_config)
-        else:
-            logger.info("Using existing AAC file: %s", aac_file)
-        output_file = options.output_dir / "audiobook.m4b"
-        if options.output_format == "m4b-ffmpeg":
-            create_m4b(
-                aac_file,
-                output_file,
-                chapters_file=chapters_file,
-                metadata=options.metadata,
-            )
-        else:
-            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
-    else:
+
+    if options.output_format == "aac":
         output_file = options.output_dir / "audiobook.aac"
         convert_to_aac(combined_audio, output_file, config=options.audio_config)
+        return output_file
+
+    # Convert to AAC first if needed
+    aac_file = options.output_dir / "audiobook.aac"
+    if not (options.resume and aac_file.exists()):
+        convert_to_aac(combined_audio, aac_file, config=options.audio_config)
+    else:
+        logger.info("Using existing AAC file: %s", aac_file)
+
+    # Create M4B output
+    output_file = options.output_dir / "audiobook.m4b"
+    if options.output_format == "m4b-ffmpeg":
+        create_m4b(
+            aac_file,
+            output_file,
+            chapters_file=chapters_file,
+            metadata=options.metadata,
+        )
+    else:
+        create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
+
     progress.complete_task("Converting audio")
+    return output_file
+
+
+def process_with_progress(
+    progress: tui_module.ProcessingProgress,
+    options: ProcessingOptions,
+    audio_files: List[Path],
+) -> Path:
+    """Process the audiobook with progress tracking, handling each step sequentially."""
+    is_mp3 = audio_files[0].suffix.lower() == ".mp3"
+
+    # Step 1: Merge audio files
+    combined_audio = merge_audio_files(progress, options, audio_files, is_mp3)
+
+    # Step 2: Process chapters
+    chapters_file = process_chapters(progress, options, audio_files, is_mp3)
+
+    # Step 3: Convert to final format
+    return convert_audio(progress, options, combined_audio, chapters_file)
 
 
 def main():

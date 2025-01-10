@@ -5,47 +5,20 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from click.testing import CliRunner
 
-from audiobook_tools.common import AudiobookMetadata
+from audiobook_tools.cli.main import cli
 from audiobook_tools.core.processor import AudiobookProcessor, ProcessingOptions
-from audiobook_tools.utils.audio import AudioConfig, AudioProcessingError
-
-
-def verify_chapters(chapter_content, expected_chapters):
-    """Verify chapter content matches expected chapters.
-
-    Args:
-        chapter_content: List of lines from the chapters file
-        expected_chapters: List of tuples (title, start, end) for expected chapters
-    """
-    chapter_idx = 0
-    for i, line in enumerate(chapter_content):
-        if line == "[CHAPTER]":
-            title, start, end = None, None, None
-            for j in range(i + 1, min(i + 5, len(chapter_content))):
-                if chapter_content[j].startswith("TIMEBASE="):
-                    assert chapter_content[j] == "TIMEBASE=1/1"
-                elif chapter_content[j].startswith("START="):
-                    start = int(chapter_content[j].split("=")[1])
-                elif chapter_content[j].startswith("END="):
-                    end = int(chapter_content[j].split("=")[1])
-                elif chapter_content[j].startswith("title="):
-                    title = chapter_content[j].split("=")[1]
-
-            if title and start is not None and end is not None:
-                expected_title, expected_start, expected_end = expected_chapters[
-                    chapter_idx
-                ]
-                assert title == expected_title
-                assert start == expected_start
-                assert end == expected_end
-                chapter_idx += 1
-
-    assert chapter_idx == len(expected_chapters), "All chapters should be found"
+from audiobook_tools.tests.test_utils import (
+    create_mock_ffmpeg_duration,
+    create_test_options,
+    verify_chapters,
+)
+from audiobook_tools.utils.audio import AudioProcessingError
 
 
 @pytest.fixture
-def sample_mp3_files(tmp_path: Path) -> Path:  # pylint: disable=redefined-outer-name
+def sample_mp3_files(tmp_path: Path) -> Path:
     """Create a sample directory with MP3 files that have chapter information in filenames."""
     book_dir = tmp_path / "Test Author - Test Book (Audio Book)"
     book_dir.mkdir()
@@ -117,18 +90,12 @@ def test_detect_mp3_chapters(
 
 
 @patch("audiobook_tools.utils.audio.subprocess.run")
-def test_process_mp3_files(
-    mock_run: Mock, sample_mp3_files: Path, tmp_path: Path
-):  # pylint: disable=redefined-outer-name
+def test_process_mp3_files(mock_run: Mock, sample_mp3_files: Path, tmp_path: Path):
     """Test processing MP3 files into M4B with chapters."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    metadata = AudiobookMetadata(
-        title="Test Book", artist="Test Author", cover_art=None
-    )
-
-    audio_config = AudioConfig(bitrate="64k")
+    metadata, audio_config = create_test_options(sample_mp3_files, output_dir)
 
     # Create processing options
     options = ProcessingOptions(
@@ -140,29 +107,16 @@ def test_process_mp3_files(
         dry_run=False,
     )
 
-    # Mock ffmpeg duration query with different durations for each file
-    def mock_ffmpeg_side_effect(*args, **_kwargs):
-        result = Mock()
-        result.returncode = 0
-        result.stdout = ""
-
-        # Extract CD and track info from the input file path
-        input_file = str(args[0][2])  # ffmpeg -i <input_file>
-        if "malformed" in input_file:
-            # Malformed files should be skipped, not queried for duration
-            raise AssertionError("Malformed file should not be processed")
-        if "CD1" in input_file:
-            if "01" in input_file:
-                result.stderr = "Duration: 00:30:00"  # 30 min intro
-            elif "02" in input_file:
-                result.stderr = "Duration: 00:45:00"  # 45 min chapter
-        elif "CD2" in input_file:
-            result.stderr = "Duration: 00:20:00"  # 20 min chapters
-        else:
-            result.stderr = ""
-        return result
-
-    mock_run.side_effect = mock_ffmpeg_side_effect
+    # Mock ffmpeg duration query
+    durations = [
+        ("CD1.*01", "00:30:00"),  # 30 min intro
+        ("CD1.*02", "00:45:00"),  # 45 min chapter
+        ("CD2", "00:20:00"),  # 20 min chapters
+    ]
+    mock_run.side_effect = create_mock_ffmpeg_duration(
+        durations=durations,
+        skip_patterns=["malformed"],
+    ).side_effect
 
     processor = AudiobookProcessor(options)
     output_file = processor.process()
@@ -170,7 +124,7 @@ def test_process_mp3_files(
     # Verify chapters file was created with correct structure
     chapters_file = output_dir / "chapters.txt"
     assert chapters_file.exists()
-    chapter_content = chapters_file.read_text()
+    chapter_content = chapters_file.read_text().strip()
 
     # Verify exact format of chapters file
     expected_content = """;FFMETADATA1
@@ -198,7 +152,7 @@ title=Chapter 4 (1)
 TIMEBASE=1/1
 START=6900
 END=8100
-title=Chapter 5 (1)"""
+title=Chapter 5 (1)""".strip()
 
     assert (
         chapter_content == expected_content
@@ -232,9 +186,7 @@ title=Chapter 5 (1)"""
 
 
 @pytest.fixture
-def sample_flat_mp3_files(
-    tmp_path: Path,
-) -> Path:  # pylint: disable=redefined-outer-name
+def sample_flat_mp3_files(tmp_path: Path) -> Path:
     """Create a sample directory with MP3 files in a flat structure (no CD subdirs)."""
     book_dir = tmp_path / "Test Author - Test Book (Audio Book)"
     book_dir.mkdir()
@@ -295,16 +247,12 @@ def test_flat_mp3_structure(
 @patch("audiobook_tools.utils.audio.subprocess.run")
 def test_process_flat_mp3_files(
     mock_run: Mock, sample_flat_mp3_files: Path, tmp_path: Path
-):  # pylint: disable=redefined-outer-name
+):
     """Test processing MP3 files without CD directories."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    metadata = AudiobookMetadata(
-        title="Test Book", artist="Test Author", cover_art=None
-    )
-
-    audio_config = AudioConfig(bitrate="64k")
+    metadata, audio_config = create_test_options(sample_flat_mp3_files, output_dir)
 
     # Create processing options
     options = ProcessingOptions(
@@ -316,24 +264,9 @@ def test_process_flat_mp3_files(
         dry_run=False,
     )
 
-    # Mock ffmpeg duration query with different durations for each file
-    def mock_ffmpeg_side_effect(*args, **_kwargs):
-        result = Mock()
-        result.returncode = 0
-        result.stdout = ""
-
-        # Extract track number from input file path
-        input_file = str(args[0][2])  # ffmpeg -i <input_file>
-        track_match = re.search(r" - (\d+) -", input_file)
-        if not track_match:
-            result.stderr = ""
-            return result
-
-        # Each chapter is 15 minutes
-        result.stderr = "Duration: 00:15:00"
-        return result
-
-    mock_run.side_effect = mock_ffmpeg_side_effect
+    # Mock ffmpeg duration query - each chapter is 15 minutes
+    durations = [(" - \\d+ -", "00:15:00")]  # Match any track number
+    mock_run.side_effect = create_mock_ffmpeg_duration(durations=durations).side_effect
 
     processor = AudiobookProcessor(options)
     output_file = processor.process()
@@ -341,7 +274,7 @@ def test_process_flat_mp3_files(
     # Verify chapters file was created with correct structure
     chapters_file = output_dir / "chapters.txt"
     assert chapters_file.exists()
-    chapter_content = chapters_file.read_text()
+    chapter_content = chapters_file.read_text().strip()
 
     # Verify exact format of chapters file
     expected_content = """;FFMETADATA1
@@ -424,7 +357,7 @@ title=Chapter 7 (1)
 TIMEBASE=1/1
 START=13500
 END=14400
-title=Chapter 7 (2)"""
+title=Chapter 7 (2)""".strip()
 
     assert (
         chapter_content == expected_content
@@ -464,27 +397,23 @@ title=Chapter 7 (2)"""
 
 
 @pytest.fixture
-def empty_directory(tmp_path: Path) -> Path:  # pylint: disable=redefined-outer-name
+def test_empty_dir(tmp_path: Path) -> Path:
     """Create an empty directory for testing error cases."""
     book_dir = tmp_path / "Empty Book"
     book_dir.mkdir()
     return book_dir
 
 
-def test_no_valid_audio_files(empty_directory: Path, tmp_path: Path):
+def test_no_valid_audio_files(test_empty_dir: Path, tmp_path: Path):
     """Test that we handle the case when no valid audio files are found."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
-    metadata = AudiobookMetadata(
-        title="Test Book", artist="Test Author", cover_art=None
-    )
-
-    audio_config = AudioConfig(bitrate="64k")
+    metadata, audio_config = create_test_options(test_empty_dir, output_dir)
 
     # Create processing options
     options = ProcessingOptions(
-        input_dir=empty_directory,
+        input_dir=test_empty_dir,
         output_dir=output_dir,
         output_format="m4b-ffmpeg",
         metadata=metadata,
@@ -502,13 +431,9 @@ def test_no_valid_audio_files(empty_directory: Path, tmp_path: Path):
 
 @patch("audiobook_tools.utils.audio.subprocess.run")
 def test_cli_command_no_audio_files(
-    mock_run: Mock, empty_directory: Path, tmp_path: Path
+    mock_run: Mock, test_empty_dir: Path, tmp_path: Path
 ):
     """Test CLI command mode with explicit parameters when no audio files are found."""
-    from click.testing import CliRunner
-
-    from audiobook_tools.cli.main import cli
-
     output_dir = tmp_path / "output"
     output_dir.mkdir()
 
@@ -522,7 +447,7 @@ def test_cli_command_no_audio_files(
         cli,
         [
             "process",
-            str(empty_directory),
+            str(test_empty_dir),
             "--output-dir",
             str(output_dir),
             "--title",
@@ -534,6 +459,6 @@ def test_cli_command_no_audio_files(
     )
 
     assert result.exit_code == 1
-    assert f"No valid FLAC or MP3 files found in {empty_directory}" in result.output
+    assert f"No valid FLAC or MP3 files found in {test_empty_dir}" in result.output
     assert "Error: " in result.output  # Click error prefix
     assert not mock_run.called  # No ffmpeg calls should be made

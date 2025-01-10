@@ -193,7 +193,8 @@ class AudiobookProcessor:
         duration_match = re.search(r"Duration: (\d{2}):(\d{2}):(\d{2})", result.stderr)
         if duration_match:
             hours, minutes, seconds = map(int, duration_match.groups())
-            return hours * 3600 + minutes * 60 + seconds
+            total_seconds = hours * 3600 + minutes * 60 + seconds
+            return total_seconds
         return 0
 
     @staticmethod
@@ -252,27 +253,26 @@ class AudiobookProcessor:
                 chapter_counts[chapter_title] += 1
                 display_title = f"{chapter_title} ({chapter_counts[chapter_title]})"
 
-            chapters.append({
-                "title": display_title,
-                "start": current_time,
-                "end": current_time + duration
-            })
+            # Store chapter info
+            chapters.append((display_title, current_time, current_time + duration))
             current_time += duration
 
         # Write chapters file
         with open(chapters_file, "w", encoding="utf-8") as f:
-            f.write(";FFMETADATA1\n")  # FFmpeg metadata header
+            # Write header
+            f.write(";FFMETADATA1\n")
 
-            for i, chapter in enumerate(chapters):
+            # Write chapters
+            for i, (title, start, end) in enumerate(chapters):
                 f.write("[CHAPTER]\n")
                 f.write("TIMEBASE=1/1\n")
-                f.write(f"START={chapter['start']}\n")
-                f.write(f"END={chapter['end']}\n")
-                # Don't add newline after last chapter
+                f.write(f"START={start}\n")
+                f.write(f"END={end}\n")
+                # Don't add newline after the last title
                 if i < len(chapters) - 1:
-                    f.write(f"title={chapter['title']}\n")
+                    f.write(f"title={title}\n")
                 else:
-                    f.write(f"title={chapter['title']}")
+                    f.write(f"title={title}")
 
         return chapters_file
 
@@ -347,7 +347,9 @@ class AudiobookProcessor:
                 logger.info("Using existing AAC file: %s", aac_file)
 
             # Create output filename in the format 'author: title'
-            output_filename = f"{self.options.metadata.artist}: {self.options.metadata.title}.m4b"
+            output_filename = (
+                f"{self.options.metadata.artist}: {self.options.metadata.title}.m4b"
+            )
             output_file = self.options.output_dir / output_filename
 
             if self.options.output_format == "m4b-ffmpeg":
