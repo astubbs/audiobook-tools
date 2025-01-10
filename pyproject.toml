@@ -1,31 +1,30 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "audiobook_tools"
+[tool.poetry]
+name = "audiobook-tools"
 version = "0.1.0"
-authors = [
-    { name = "Your Name", email = "your.email@example.com" },
-]
 description = "Tools for processing audiobooks with chapters"
+authors = ["Antony Stubbs <antony.stubbs@gmail.com>"]
 readme = "README.md"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
-dependencies = [
-    "click>=8.0.0",
-    "rich>=13.0.0",
-]
+packages = [{include = "audiobook_tools"}]
+license = "MIT"
 
-[project.scripts]
+[tool.poetry.dependencies]
+python = "^3.8"
+click = "^8.0.0"
+rich = "^13.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0.0"
+black = "^23.0.0"
+isort = "^5.0.0"
+pylint = "^3.0.0"
+tox = "^4.11.3"
+
+[tool.poetry.scripts]
 audiobook-tools = "audiobook_tools.cli.main:main"
 
-[tool.setuptools.packages.find]
-include = ["audiobook_tools*"]
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 88

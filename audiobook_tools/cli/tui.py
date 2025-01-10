@@ -1,5 +1,6 @@
 """Terminal User Interface components using rich."""
 
+import logging
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -11,6 +12,85 @@ from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 console = Console()
+logger = logging.getLogger(__name__)
+
+
+def display_welcome():
+    """Display the welcome screen and guide user through initial choices."""
+    console.print()
+    console.print(Panel(
+        "[bold blue]Welcome to Audiobook Tools[/bold blue]\n\n"
+        "This tool helps you process audiobooks from CD rips (FLAC+CUE) into M4B format.\n"
+        "It will guide you through the process step by step.",
+        title="🎧 Audiobook Tools",
+        subtitle="Press Ctrl+C at any time to exit",
+    ), justify="center")
+    console.print()
+
+    # Get input directory
+    while True:
+        input_dir = Path(Prompt.ask(
+            "[bold]Enter the path to your audiobook directory[/bold]\n"
+            "This should be the directory containing your CD folders with FLAC and CUE files"
+        ))
+        
+        if not input_dir.exists():
+            console.print("[red]Directory not found. Please try again.[/red]")
+            continue
+            
+        flac_files = list(input_dir.rglob("*.flac"))
+        if not flac_files:
+            console.print("[red]No FLAC files found in this directory. Please check the path.[/red]")
+            if not Confirm.ask("Try another directory?"):
+                return None
+            continue
+            
+        break
+
+    # Show found files
+    display_files(flac_files, "Found Audio Files")
+
+    # Get output directory
+    output_dir = Path(Prompt.ask(
+        "[bold]Enter output directory[/bold]",
+        default=str(input_dir.parent / "out")
+    ))
+
+    # Get format
+    format_choices = {
+        "1": ("m4b-ffmpeg", "M4B using FFmpeg (recommended)"),
+        "2": ("m4b-mp4box", "M4B using MP4Box"),
+        "3": ("aac", "AAC audio only"),
+    }
+    
+    console.print("\n[bold]Choose output format:[/bold]")
+    for key, (_, desc) in format_choices.items():
+        console.print(f"{key}. {desc}")
+    
+    format_choice = Prompt.ask(
+        "Enter your choice",
+        choices=list(format_choices.keys()),
+        default="1"
+    )
+    output_format = format_choices[format_choice][0]
+
+    # Get metadata if creating M4B
+    metadata = {}
+    if output_format.startswith("m4b"):
+        metadata = prompt_metadata()
+
+    result = {
+        "input_dir": input_dir,
+        "output_dir": output_dir,
+        "output_format": output_format,
+        "bitrate": "64k",  # Default bitrate
+        "dry_run": False,  # Default to actual processing
+        "interactive": True,  # Default to interactive mode
+        **metadata
+    }
+    
+    logger.debug("Returning options: %s", result)
+    return result
 
 
 def display_header(title: str) -> None:

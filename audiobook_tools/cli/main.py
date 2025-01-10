@@ -46,7 +46,7 @@ import click
 from ..core.cue import CueProcessingError, CueProcessor
 from ..core.processor import AudiobookProcessor, ProcessingOptions
 from ..utils.audio import AudioProcessingError
-from . import tui
+from . import tui as tui_module
 
 # Configure logging
 logging.basicConfig(
@@ -62,7 +62,7 @@ class CliContext:
     use_tui: bool = True
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
 @click.option("--tui/--no-tui", default=True, help="Enable/disable Terminal User Interface")
 @click.pass_context
@@ -71,6 +71,21 @@ def cli(ctx, debug: bool, tui: bool):
     ctx.obj = CliContext(debug=debug, use_tui=tui)
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
+        logger.debug("Debug mode enabled")
+
+    # If no command is provided and --help is not used, show the welcome screen
+    if ctx.invoked_subcommand is None and not any(arg in ['--help', '-h'] for arg in ctx.args):
+        logger.debug("Showing welcome screen")
+        if ctx.obj.use_tui:
+            logger.debug("Using TUI mode")
+            options = tui_module.display_welcome()
+            if options:
+                logger.debug("Options from welcome screen: %s", options)
+                ctx.invoke(process, **options)
+        else:
+            logger.debug("Using CLI mode")
+            click.echo(ctx.get_help())
+            ctx.exit(1)
 
 
 @cli.command()
@@ -90,18 +105,18 @@ def combine_cue(ctx, input_dir: Path, output_dir: Path):
     """
     try:
         if ctx.obj.use_tui:
-            tui.display_header("Combining CUE Sheets")
+            tui_module.display_header("Combining CUE Sheets")
 
         processor = CueProcessor(input_dir, output_dir)
         
         if ctx.obj.use_tui:
-            with tui.ProcessingProgress() as progress:
+            with tui_module.ProcessingProgress() as progress:
                 task = progress.start_task("Processing CUE files")
                 output_file = processor.process_directory()
                 progress.complete_task("Processing CUE files")
 
-            tui.console.print()
-            tui.console.print(
+            tui_module.console.print()
+            tui_module.console.print(
                 "[bold green]Successfully created combined CUE file:[/bold green] "
                 + str(output_file)
             )
@@ -179,13 +194,13 @@ def process(
     """
     try:
         if ctx.obj.use_tui:
-            tui.display_header("Processing Audiobook")
+            tui_module.display_header("Processing Audiobook")
 
         # Create processor to find files
         options = ProcessingOptions(
             input_dir=input_dir,
             output_dir=output_dir,
-            format=output_format,
+            output_format=output_format,
             bitrate=bitrate,
             title=title,
             artist=artist,
@@ -200,7 +215,7 @@ def process(
         # In interactive mode, prompt for missing metadata
         if interactive and not dry_run and not (title and artist):
             if ctx.obj.use_tui:
-                metadata = tui.prompt_metadata()
+                metadata = tui_module.prompt_metadata()
             else:
                 metadata = {
                     "title": click.prompt("Title", default=""),
@@ -221,8 +236,8 @@ def process(
         # Show summary and confirm
         if interactive:
             if ctx.obj.use_tui:
-                if not tui.confirm_processing(flac_files, output_dir):
-                    tui.console.print("[yellow]Operation cancelled.[/yellow]")
+                if not tui_module.confirm_processing(flac_files, output_dir):
+                    tui_module.console.print("[yellow]Operation cancelled.[/yellow]")
                     return
             else:
                 click.echo("\nProcessing Summary:")
@@ -236,7 +251,7 @@ def process(
 
         if ctx.obj.use_tui:
             # Process files with progress tracking
-            with tui.ProcessingProgress() as progress:
+            with tui_module.ProcessingProgress() as progress:
                 if dry_run:
                     progress.start_task("Dry run")
                     output_file = processor.process()
@@ -258,9 +273,9 @@ def process(
                     progress.complete_task("Converting audio")
 
             if dry_run:
-                tui.console.print("[green]Dry run completed successfully.[/green]")
+                tui_module.console.print("[green]Dry run completed successfully.[/green]")
             else:
-                tui.console.print(
+                tui_module.console.print(
                     "[bold green]Successfully created audiobook:[/bold green] "
                     + str(output_file)
                 )

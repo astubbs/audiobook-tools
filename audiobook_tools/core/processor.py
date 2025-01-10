@@ -16,7 +16,7 @@ Example:
     options = ProcessingOptions(
         input_dir=Path("./audiobook"),
         output_dir=Path("./out"),
-        format="m4b-ffmpeg",
+        output_format="m4b-ffmpeg",
         title="My Audiobook",
         artist="Author Name"
     )
@@ -59,7 +59,7 @@ class ProcessingOptions:
 
     input_dir: Path
     output_dir: Path
-    format: str = "m4b-ffmpeg"  # One of: m4b-ffmpeg, m4b-mp4box, aac
+    output_format: str = "m4b-ffmpeg"  # One of: m4b-ffmpeg, m4b-mp4box, aac
     bitrate: str = "64k"  # Default bitrate optimized for spoken word
     title: Optional[str] = None
     artist: Optional[str] = None
@@ -147,16 +147,16 @@ class AudiobookProcessor:
         chapters_file = cue_processor.process_directory()
 
         # Convert to AAC if needed
-        if self.options.format != "aac":
+        if self.options.output_format != "aac":
             logger.info("Converting to AAC...")
             aac_file = self.options.output_dir / "audiobook.aac"
             convert_to_aac(combined_flac, aac_file, bitrate=self.options.bitrate)
 
             # Create M4B with chapters
-            logger.info(f"Creating {self.options.format}...")
+            logger.info(f"Creating {self.options.output_format}...")
             output_file = self.options.output_dir / "audiobook.m4b"
 
-            if self.options.format == "m4b-ffmpeg":
+            if self.options.output_format == "m4b-ffmpeg":
                 create_m4b(
                     aac_file,
                     output_file,

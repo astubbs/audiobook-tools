@@ -1,15 +1,37 @@
 # Audiobook Tools
 
-A Python package for processing audiobooks from CD rips (FLAC files with CUE sheets) into M4B audiobooks with proper chapter markers.
+A command-line tool for processing audiobooks with chapter markers. Convert FLAC+CUE audiobooks to M4B or AAC format with proper chapter markers and metadata.
 
 ## Features
 
-- Combines multiple FLAC files into a single audiobook
-- Processes and combines CUE sheets for chapter markers
-- Creates M4B audiobooks with chapters using FFmpeg or MP4Box
-- Supports metadata (title, artist) and cover art
-- Optimized settings for spoken word audio
+- Merge multiple FLAC files into a single audiobook
+- Process CUE sheets for chapter information
+- Convert to M4B with chapters or AAC format
+- Add metadata (title, artist, cover art)
+- Beautiful terminal interface with progress tracking
+- Support for both FFmpeg and MP4Box processing methods
+- Optimized settings for spoken word audio (mono, 64k bitrate)
 - Dry run mode to preview changes
+
+## Quick Start
+
+```bash
+# Install dependencies
+brew install ffmpeg gpac sox poetry  # macOS
+sudo apt-get install ffmpeg gpac sox python3-poetry  # Ubuntu/Debian
+
+# Clone and set up
+git clone https://github.com/yourusername/audiobook-tools.git
+cd audiobook-tools
+poetry install
+
+# Run the tool (choose one method):
+poetry run audiobook-tools --help     # Run directly through Poetry
+# OR
+poetry env activate                   # Activate virtual environment
+source $(poetry env info --path)/bin/activate.fish  # For fish shell
+audiobook-tools --help               # Run command directly
+```
 
 ## Installation
 
@@ -19,66 +41,28 @@ Install system dependencies:
 
 ```bash
 # macOS (using Homebrew)
-brew install ffmpeg mp4box sox
+brew install ffmpeg gpac sox poetry
 
 # Ubuntu/Debian
-sudo apt-get install ffmpeg gpac sox
+sudo apt-get install ffmpeg gpac sox python3-poetry
 ```
 
-### Install the Package
-
+### Using Poetry (recommended)
 ```bash
-# Install in development mode
-pip install -e .
+# Clone and install
+git clone https://github.com/yourusername/audiobook-tools.git
+cd audiobook-tools
+poetry install
 
-# Install with development tools
-pip install -e ".[dev]"
+# Run the tool
+poetry run audiobook-tools --help
 ```
 
-## Usage
-
-### Basic Usage
-
-Process an audiobook directory into an M4B file:
-
-```bash
-audiobook-tools process ./audiobook-directory
-```
-
-This will:
-1. Find and merge all FLAC files
-2. Process CUE sheets for chapters
-3. Convert to AAC with optimal spoken word settings
-4. Create an M4B file with chapters
-
-### Advanced Usage
-
-```bash
-# Process with all options
-audiobook-tools process ./input-dir \
-    --output-dir ./out \
-    --format m4b-ffmpeg \
-    --bitrate 64k \
-    --title "A New Earth" \
-    --artist "Eckhart Tolle" \
-    --cover cover.jpg
-
-# Just combine CUE files
-audiobook-tools combine-cue ./input-dir ./out
-
-# Preview what would happen
-audiobook-tools process ./input-dir --dry-run
-```
-
-### Options
-
-- `--format, -f`: Output format (`m4b-ffmpeg`, `m4b-mp4box`, or `aac`)
-- `--bitrate, -b`: Audio bitrate (default: 64k for spoken word)
-- `--title, -t`: Audiobook title
-- `--artist, -a`: Artist/author name
-- `--cover, -c`: Cover art image file
-- `--dry-run, -d`: Show what would be done without making changes
-- `--debug`: Enable debug logging
+### System Requirements
+- Python 3.8 or later
+- FFmpeg (for audio processing)
+- sox (for FLAC merging)
+- MP4Box (optional, for alternative M4B creation)
 
 ## Directory Structure
 
@@ -95,42 +79,42 @@ Place your audiobook files in a directory structure like:
   └── ...
 ```
 
-## Development
+## Usage
 
-### Setup Development Environment
-
+### Basic Usage
 ```bash
-# Install development dependencies
-make install
+# Process an audiobook directory (interactive mode with TUI)
+audiobook-tools process ./audiobook-dir
 
-# Run tests
-make test
+# Just combine CUE sheets
+audiobook-tools combine-cue ./audiobook-dir ./output-dir
 
-# Run linting
-make lint
-
-# Run type checking
-make type
-
-# Format code
-make format
-
-# Run all checks
-make check
+# Preview what would happen
+audiobook-tools process ./audiobook-dir --dry-run
 ```
 
-### Project Structure
+### Advanced Usage
+```bash
+# Full options example
+audiobook-tools process ./audiobook-dir \
+    --output-dir ./out \
+    --output-format m4b-ffmpeg \
+    --bitrate 64k \
+    --title "Book Title" \
+    --artist "Author Name" \
+    --cover cover.jpg
+```
 
-```
-audiobook_tools/
-├── core/           # Core processing logic
-│   ├── cue.py     # CUE sheet processing
-│   └── processor.py # Main audiobook processor
-├── cli/           # Command-line interface
-│   └── main.py    # CLI implementation
-└── utils/         # Utility functions
-    └── audio.py   # Audio processing utilities
-```
+### Interface Options
+- `--tui/--no-tui`: Enable/disable Terminal User Interface (default: enabled)
+- `--interactive/--no-interactive`: Enable/disable interactive prompts (default: enabled)
+- `--debug`: Enable debug logging
+- `--dry-run`: Show what would be done without making changes
+
+### Output Formats
+- `m4b-ffmpeg`: M4B file with chapters using FFmpeg (recommended)
+- `m4b-mp4box`: M4B file with chapters using MP4Box
+- `aac`: AAC audio file without chapters
 
 ## Troubleshooting
 
@@ -145,16 +129,29 @@ audiobook_tools/
 Run commands with `--debug` for detailed logging:
 
 ```bash
-audiobook-tools --debug process ./input-dir
+audiobook-tools --debug process ./audiobook-dir
 ```
 
-## Contributing
+## Development
 
-1. Fork the repository
-2. Create a feature branch
-3. Run tests and checks: `make check`
-4. Submit a pull request
+```bash
+# Install development dependencies
+poetry install
+
+# Run tests
+poetry run pytest
+
+# Run linting
+poetry run black audiobook_tools tests
+poetry run isort audiobook_tools tests
+poetry run pylint audiobook_tools tests
+
+# Run all checks
+poetry run tox
+```
+
+For more detailed development guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT License - See LICENSE file for details 
+This project is licensed under the MIT License - see the LICENSE file for details. 
