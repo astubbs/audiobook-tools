@@ -45,6 +45,7 @@ This section provides context and guidelines specifically for LLMs assisting wit
 - Test edge cases (empty input, missing files, etc.)
 - Consider cross-platform compatibility
 - Preserve existing comments and documentation
+- Keep changes as simple as the code that was replaced: don't make things more complicated
 
 ### Documentation Guidelines
 - Keep explanations in code comments
@@ -86,6 +87,7 @@ This section provides context and guidelines specifically for LLMs assisting wit
 - Use type hints consistently
 - Keep functions focused and small
 - Use clear, descriptive variable names
+- If disabling lint rules, comment the justification
 
 ### Testing
 

@@ -159,25 +159,9 @@ Run commands with `--debug` for detailed logging:
 audiobook-tools --debug process ./audiobook-dir
 ```
 
-## Development
+## Contributing
 
-```bash
-# Install development dependencies
-poetry install
-
-# Run tests
-poetry run pytest
-
-# Run linting
-poetry run black audiobook_tools tests
-poetry run isort audiobook_tools tests
-poetry run pylint audiobook_tools tests
-
-# Run all checks
-poetry run tox
-```
-
-For more detailed development guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For development setup and guidelines, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## License
 
