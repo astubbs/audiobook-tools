@@ -11,7 +11,7 @@ It offers two main commands:
    # Advanced usage with all options
    audiobook-tools process ./audiobook-dir \\
        --output-dir ./out \\
-       --format m4b-ffmpeg \\
+       --output-format m4b-ffmpeg \\
        --bitrate 64k \\
        --title "Book Title" \\
        --artist "Author Name" \\
@@ -33,140 +33,160 @@ The CLI is built using Click and provides:
 - Type checking and validation of inputs
 - Proper error handling and user feedback
 """
+
 import logging
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
+
 import click
 
-from ..core.cue import CueProcessor, CueProcessingError
+from ..core.cue import CueProcessingError, CueProcessor
 from ..core.processor import AudiobookProcessor, ProcessingOptions
 from ..utils.audio import AudioProcessingError
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+
+@dataclass
+class CliContext:
+    """Context object for CLI commands."""
+    debug: bool = False
+
+
 @click.group()
-@click.option(
-    '--debug/--no-debug',
-    default=False,
-    help='Enable debug logging'
-)
-def cli(debug):
+@click.option("--debug/--no-debug", default=False, help="Enable debug logging")
+@click.pass_context
+def cli(ctx, debug: bool):
     """Audiobook Tools - Process and convert audiobooks with chapter markers."""
+    ctx.obj = CliContext(debug=debug)
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
+
 @cli.command()
 @click.argument(
-    'input_dir',
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path)
+    "input_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
 )
 @click.argument(
-    'output_dir',
-    type=click.Path(file_okay=False, dir_okay=True, path_type=Path)
+    "output_dir", type=click.Path(file_okay=False, dir_okay=True, path_type=Path)
 )
 def combine_cue(input_dir: Path, output_dir: Path):
     """Combine multiple CUE sheets into a single file.
-    
+
     INPUT_DIR is the directory containing the audiobook files and CUE sheets.
     OUTPUT_DIR is where the combined CUE file will be written.
     """
     try:
         processor = CueProcessor(input_dir, output_dir)
         output_file = processor.process_directory()
-        click.echo(f"Successfully created combined CUE file: {output_file}")
+        click.echo("Successfully created combined CUE file: %s" % output_file)
     except CueProcessingError as e:
         logger.error(str(e))
         raise click.ClickException(str(e))
 
+
+@dataclass
+class ProcessOptions:
+    """Options for processing audiobooks."""
+    input_dir: Path
+    output_dir: Path
+    output_format: str
+    bitrate: str
+    title: Optional[str]
+    artist: Optional[str]
+    cover: Optional[Path]
+    dry_run: bool
+
+
 @cli.command()
 @click.argument(
-    'input_dir',
-    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path)
+    "input_dir",
+    type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path),
 )
 @click.option(
-    '--output-dir', '-o',
+    "--output-dir",
+    "-o",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
-    default=Path('out'),
-    help='Output directory for processed files'
+    default=Path("out"),
+    help="Output directory for processed files",
 )
 @click.option(
-    '--format', '-f',
-    type=click.Choice(['m4b-ffmpeg', 'm4b-mp4box', 'aac']),
-    default='m4b-ffmpeg',
-    help='Output format and processing method'
+    "--output-format",
+    "-f",
+    type=click.Choice(["m4b-ffmpeg", "m4b-mp4box", "aac"]),
+    default="m4b-ffmpeg",
+    help="Output format and processing method",
 )
 @click.option(
-    '--bitrate', '-b',
+    "--bitrate",
+    "-b",
     type=str,
-    default='64k',
-    help='Audio bitrate for encoding (default: 64k for spoken word)'
+    default="64k",
+    help="Audio bitrate for encoding (default: 64k for spoken word)",
 )
+@click.option("--title", "-t", type=str, help="Audiobook title")
+@click.option("--artist", "-a", type=str, help="Audiobook artist/author")
 @click.option(
-    '--title', '-t',
-    type=str,
-    help='Audiobook title'
-)
-@click.option(
-    '--artist', '-a',
-    type=str,
-    help='Audiobook artist/author'
-)
-@click.option(
-    '--cover', '-c',
+    "--cover",
+    "-c",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    help='Cover art image file'
+    help="Cover art image file",
 )
 @click.option(
-    '--dry-run', '-d',
+    "--dry-run",
+    "-d",
     is_flag=True,
-    help='Show what would be done without making changes'
+    help="Show what would be done without making changes",
 )
 def process(
     input_dir: Path,
     output_dir: Path,
-    format: str,
+    output_format: str,
     bitrate: str,
-    title: str,
-    artist: str,
-    cover: Path,
-    dry_run: bool
+    title: Optional[str],
+    artist: Optional[str],
+    cover: Optional[Path],
+    dry_run: bool,
 ):
     """Process an audiobook directory into a single file with chapters.
-    
+
     INPUT_DIR is the directory containing the audiobook files and CUE sheets.
     """
     try:
         options = ProcessingOptions(
             input_dir=input_dir,
             output_dir=output_dir,
-            format=format,
+            format=output_format,
             bitrate=bitrate,
             title=title,
             artist=artist,
             cover_art=cover,
-            dry_run=dry_run
+            dry_run=dry_run,
         )
-        
+
         processor = AudiobookProcessor(options)
         output_file = processor.process()
-        
+
         if dry_run:
             click.echo("Dry run completed successfully. No files were modified.")
         else:
-            click.echo(f"Successfully created audiobook: {output_file}")
-            
+            click.echo("Successfully created audiobook: %s" % output_file)
+
     except (AudioProcessingError, CueProcessingError) as e:
         logger.error(str(e))
         raise click.ClickException(str(e))
 
+
 def main():
     """Main entry point for the CLI."""
     try:
-        cli()
+        cli(obj={})
     except Exception as e:
-        logger.error(f"Unexpected error: {e}")
-        raise click.ClickException(str(e)) 
+        logger.error("Unexpected error: %s", e)
+        raise click.ClickException(str(e))
