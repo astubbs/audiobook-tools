@@ -25,8 +25,6 @@ black = "^23.0.0"
 isort = "^5.0.0"
 # Static code analyzer
 pylint = "^3.0.0"
-# Test automation tool
-tox = "^4.11.3"
 # Static type checker
 mypy = "^1.8.0"
 

@@ -33,8 +33,8 @@ poetry run black audiobook_tools tests
 poetry run isort audiobook_tools tests
 poetry run pylint audiobook_tools tests
 
-# Run all checks (alternative to verify.py)
-poetry run tox
+# Run type checking
+poetry run mypy audiobook_tools
 ```
 
 ## Contributing Guidelines
