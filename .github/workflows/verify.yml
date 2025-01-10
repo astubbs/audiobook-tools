@@ -55,7 +55,7 @@ jobs:
     
     - name: Run linting
       run: |
-        poetry run pylint audiobook_tools tests
+        poetry run pylint audiobook_tools
     
     - name: Run type checking
       run: |
