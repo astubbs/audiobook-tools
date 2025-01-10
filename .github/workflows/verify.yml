@@ -68,19 +68,17 @@ jobs:
       run: |
         poetry install --no-interaction --with dev
     
-    - name: Run tests
-      run: |
-        poetry run pytest
-    
-    - name: Check formatting and imports
-      run: |
-        poetry run black --check audiobook_tools
-        poetry run isort --check-only audiobook_tools
-    
+    - name: Check formatting
+      run: poetry run black --check audiobook_tools
+
+    - name: Check import sorting
+      run: poetry run isort --check audiobook_tools
+
     - name: Run linting
-      run: |
-        poetry run pylint audiobook_tools
-    
+      run: poetry run pylint audiobook_tools
+
     - name: Run type checking
-      run: |
-        poetry run mypy audiobook_tools 
+      run: poetry run mypy audiobook_tools
+
+    - name: Run tests
+      run: poetry run pytest 

@@ -12,8 +12,21 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
+from ..core.processor import AudiobookProcessor, ProcessingOptions
+from ..utils.audio import AudioProcessingError
+
 console = Console()
 logger = logging.getLogger(__name__)
+
+WELCOME_MESSAGE = """
+                           Welcome to Audiobook Tools
+
+This tool helps you process audiobooks from:
+- CD rips (FLAC+CUE format)
+- MP3 files with chapter information in filenames
+
+               It will guide you through the process step by step.
+"""
 
 
 def browse_directory(message: str, default: str = ".") -> Optional[Path]:
@@ -71,7 +84,9 @@ def display_welcome() -> Optional[Dict]:
     console.print(
         Panel(
             "[bold blue]Welcome to Audiobook Tools[/bold blue]\n\n"
-            "This tool helps you process audiobooks from CD rips (FLAC+CUE) into M4B format.\n"
+            "This tool helps you process audiobooks from:\n"
+            "- CD rips (FLAC+CUE format)\n"
+            "- MP3 files with chapter information in filenames\n\n"
             "It will guide you through the process step by step.",
             title="🎧 Audiobook Tools",
             subtitle="Press Ctrl+C at any time to exit",
@@ -84,7 +99,7 @@ def display_welcome() -> Optional[Dict]:
     while True:
         input_dir = browse_directory(
             "[bold]Select your audiobook directory[/bold]\n"
-            "This should be the directory containing your CD folders with FLAC and CUE files"
+            "This should be the directory containing your audio files"
         )
 
         if input_dir is None:  # User cancelled
@@ -94,10 +109,13 @@ def display_welcome() -> Optional[Dict]:
             console.print("[red]Directory not found. Please try again.[/red]")
             continue
 
+        # Look for both FLAC and MP3 files
         flac_files = list(input_dir.rglob("*.flac"))
-        if not flac_files:
+        mp3_files = list(input_dir.rglob("*.mp3"))
+
+        if not flac_files and not mp3_files:
             console.print(
-                "[red]No FLAC files found in this directory. Please check the path.[/red]"
+                "[red]No FLAC or MP3 files found in this directory. Please check the path.[/red]"
             )
             if not Confirm.ask("Try another directory?"):
                 return None
@@ -106,7 +124,10 @@ def display_welcome() -> Optional[Dict]:
         break
 
     # Show found files
-    display_files(flac_files, "Found Audio Files")
+    if flac_files:
+        display_files(flac_files, "Found FLAC Files")
+    if mp3_files:
+        display_files(mp3_files, "Found MP3 Files")
 
     # Get output directory with browser
     default_output = str(input_dir.parent / "out")
@@ -223,13 +244,13 @@ class ProcessingProgress:
             )
             time.sleep(0.5)  # Give user time to see completion
 
-    def fail_task(self, name: str, error: str) -> None:
+    def fail_task(self, name: str) -> None:
         """Mark a task as failed."""
         if name in self.tasks:
             self.update(
                 self.tasks[name],
                 completed=100,
-                description=f"[bold red]{name} ✗ ({error})",
+                description=f"[bold red]{name} ✗",
             )
 
 
@@ -273,3 +294,88 @@ def confirm_processing(files: List[Path], output_dir: Path) -> bool:
     console.print(f"Output directory: [cyan]{output_dir}[/cyan]")
     console.print()
     return Confirm.ask("Continue with processing?")
+
+
+def handle_no_audio_files(directory: Path) -> bool:
+    """Handle case when no audio files are found.
+
+    Args:
+        directory: Directory that was checked
+
+    Returns:
+        True if user wants to try another directory, False otherwise
+    """
+    console.print(f"No FLAC or MP3 files found in {directory}. Please check the path.")
+    return Confirm.ask("Try another directory?", default=True)
+
+
+class AudiobookTUI:
+    """Terminal user interface for audiobook processing."""
+
+    def __init__(self):
+        """Initialize the TUI."""
+        self.progress = ProcessingProgress()
+
+    def show_welcome(self):
+        """Show welcome message and instructions."""
+        panel = Panel(
+            WELCOME_MESSAGE,
+            title="🎧 Audiobook Tools",
+            subtitle="Press Ctrl+C at any time to exit",
+        )
+        console.print(panel)
+        console.print()
+
+    def run(self) -> None:
+        """Run the TUI workflow."""
+        try:
+            self.show_welcome()
+
+            while True:
+                # Get input directory
+                input_dir = self._get_input_directory()
+                if not input_dir:
+                    break
+
+                try:
+                    # Create processing options
+                    options = display_welcome()
+                    if not options:
+                        continue
+
+                    # Process the audiobook
+                    with self.progress:
+                        processor = AudiobookProcessor(ProcessingOptions(**options))
+                        processor.process()
+                    break
+
+                except AudioProcessingError:
+                    if not handle_no_audio_files(input_dir):
+                        break
+
+        except KeyboardInterrupt:
+            console.print("\nExiting...")
+
+    def _get_input_directory(self) -> Optional[Path]:
+        """Get input directory from user.
+
+        Returns:
+            Selected directory path or None if user cancels
+        """
+        # Show available directories
+        console.print("\nAvailable directories:")
+        for entry in sorted(Path().iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                console.print(f"  {entry}/")
+        console.print()
+
+        # Get directory path
+        console.print(
+            "Navigation: Use Tab to autocomplete, ↑/↓ to view history, Enter to select"
+        )
+        path = Prompt.ask(
+            "[bold]Select your audiobook directory[/bold]\n"
+            "This should be the directory containing your audio files",
+            default=str(Path()),
+        )
+        return Path(path).resolve() if path else None
