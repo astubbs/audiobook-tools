@@ -45,7 +45,7 @@ import click
 
 from ..core.cue import CueProcessingError, CueProcessor
 from ..core.processor import AudiobookProcessor, ProcessingOptions
-from ..utils.audio import AudioProcessingError
+from ..utils.audio import AudioConfig, AudioProcessingError
 from . import tui as tui_module
 
 # Configure logging
@@ -65,9 +65,13 @@ class CliContext:
 
 
 @click.group(invoke_without_command=True)
+@click.version_option(version="0.1.0")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
 @click.option(
-    "--tui/--no-tui", default=True, help="Enable/disable Terminal User Interface"
+    "--tui/--no-tui",
+    default=True,
+    is_flag=True,
+    help="Enable/disable Terminal User Interface"
 )
 @click.pass_context
 def cli(ctx, debug: bool, tui: bool):
@@ -288,17 +292,37 @@ def process(
                 else:
                     # Merge FLAC files
                     task = progress.start_task("Merging FLAC files")
-                    processor.process()
+                    flac_files = processor.find_flac_files()
+                    combined_flac = output_dir / "combined.flac"
+                    merge_flac_files(flac_files, combined_flac)
                     progress.complete_task("Merging FLAC files")
 
                     # Process CUE sheets
                     task = progress.start_task("Processing CUE sheets")
-                    processor.process()
+                    cue_processor = CueProcessor(input_dir, output_dir)
+                    chapters_file = cue_processor.process_directory()
                     progress.complete_task("Processing CUE sheets")
 
                     # Convert audio
                     task = progress.start_task("Converting audio")
-                    output_file = processor.process()
+                    if output_format != "aac":
+                        aac_file = output_dir / "audiobook.aac"
+                        convert_to_aac(combined_flac, aac_file, config=options.audio_config)
+                        output_file = output_dir / "audiobook.m4b"
+                        if output_format == "m4b-ffmpeg":
+                            create_m4b(
+                                aac_file,
+                                output_file,
+                                chapters_file=chapters_file,
+                                title=title,
+                                artist=artist,
+                                cover_art=cover,
+                            )
+                        else:  # m4b-mp4box
+                            create_m4b_mp4box(aac_file, output_file, chapters_file=chapters_file)
+                    else:
+                        output_file = output_dir / "audiobook.aac"
+                        convert_to_aac(combined_flac, output_file, config=options.audio_config)
                     progress.complete_task("Converting audio")
 
             if dry_run:
@@ -317,13 +341,9 @@ def process(
                 output_file = processor.process()
                 click.echo("Dry run completed successfully.")
             else:
-                click.echo("Merging FLAC files...")
-                processor.process()
-                click.echo("Processing CUE sheets...")
-                processor.process()
-                click.echo("Converting audio...")
+                click.echo("Processing audiobook...")
                 output_file = processor.process()
-                click.echo("Successfully created audiobook: %s" % output_file)
+                click.echo(f"Successfully created audiobook: {output_file}")
 
     except (AudioProcessingError, CueProcessingError) as e:
         logger.error(str(e))

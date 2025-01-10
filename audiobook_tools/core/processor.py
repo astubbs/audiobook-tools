@@ -37,7 +37,7 @@ For spoken word audio, the processor uses optimized encoding settings:
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
@@ -61,7 +61,7 @@ class ProcessingOptions:
     input_dir: Path
     output_dir: Path
     output_format: str = "m4b-ffmpeg"  # One of: m4b-ffmpeg, m4b-mp4box, aac
-    audio_config: AudioConfig = AudioConfig()  # Use AudioConfig for audio settings
+    audio_config: AudioConfig = field(default_factory=AudioConfig)  # Use default_factory for mutable default
     title: Optional[str] = None
     artist: Optional[str] = None
     cover_art: Optional[Path] = None
