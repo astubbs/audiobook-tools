@@ -1,0 +1,54 @@
+[tool.poetry]
+name = "audiobook_tools"
+version = "0.1.0"
+description = "Tools for processing audiobooks with chapters"
+authors = ["Antony Stubbs <antony.stubbs@gmail.com>"]
+readme = "README.md"
+packages = [{include = "audiobook_tools"}]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+# Beautiful command line interfaces with minimal code
+click = "^8.0.0"
+# Rich text and beautiful formatting in the terminal
+rich = "^13.0.0"
+# Easy-to-use interactive command line prompts
+questionary = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+# Testing framework
+pytest = "^7.0.0"
+# Code formatter
+black = "^23.0.0"
+# Import sorter
+isort = "^5.0.0"
+# Static code analyzer
+pylint = "^3.0.0"
+# Static type checker
+mypy = "^1.8.0"
+
+[tool.poetry.scripts]
+audiobook-tools = "audiobook_tools.cli.main:main"
+abt = "audiobook_tools.cli.main:main"
+process_audiobook = "audiobook_tools.cli.main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3 
+
+[tool.pytest.ini_options]
+testpaths = ["audiobook_tools/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v" 
