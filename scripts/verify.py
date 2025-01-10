@@ -3,62 +3,74 @@
 
 import subprocess
 import sys
-from typing import List, Tuple
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 
-def run_command(cmd: List[str], name: str) -> Tuple[bool, str]:
-    """Run a command and return if it succeeded and its output."""
-    print(f"\n=== {name} ===")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+@dataclass
+class VerificationStep:
+    """Represents a verification step with its command and description."""
+
+    name: str
+    command: List[str]
+    success_message: str = "passed"
+    failure_message: str = "failed"
+
+
+def run_command(step: VerificationStep) -> Tuple[bool, str]:
+    """Run a verification step and return if it succeeded and its output.
+
+    Args:
+        step: The verification step to run
+
+    Returns:
+        Tuple of (success, output)
+    """
+    print(f"\n=== {step.name} ===")
+    result = subprocess.run(step.command, capture_output=True, text=True)
     output = result.stdout + result.stderr
     print(output)
+
     success = result.returncode == 0
     if success:
-        print(f"✅ {name} passed")
+        print(f"✅ {step.name} {step.success_message}")
     else:
-        print(f"❌ {name} failed")
+        print(f"❌ {step.name} {step.failure_message}")
     return success, output
 
 
 def main():
     """Run verification steps."""
-    failures = []
+    steps = [
+        VerificationStep(
+            name="Running tests",
+            command=["pytest"],
+        ),
+        VerificationStep(
+            name="Checking code formatting (black)",
+            command=["black", "--check", "."],
+        ),
+        VerificationStep(
+            name="Checking import sorting (isort)",
+            command=["isort", "--check", "."],
+        ),
+        VerificationStep(
+            name="Running linting (pylint)",
+            command=["pylint", "audiobook_tools"],
+        ),
+        VerificationStep(
+            name="Running type checking (mypy)",
+            command=["mypy", "audiobook_tools"],
+        ),
+    ]
 
-    # Run tests
-    success, _ = run_command(["pytest"], "Running tests")
-    if not success:
-        failures.append("Running tests")
-        sys.exit(1)
+    failures: List[str] = []
 
-    # Check code formatting
-    success, _ = run_command(
-        ["black", "--check", "."], "Checking code formatting (black)"
-    )
-    if not success:
-        failures.append("Checking code formatting (black)")
-        sys.exit(1)
-
-    # Check import sorting
-    success, _ = run_command(
-        ["isort", "--check", "."], "Checking import sorting (isort)"
-    )
-    if not success:
-        failures.append("Checking import sorting (isort)")
-        sys.exit(1)
-
-    # Run linting
-    success, _ = run_command(["pylint", "audiobook_tools"], "Running linting (pylint)")
-    if not success:
-        failures.append("Running linting (pylint)")
-        sys.exit(1)
-
-    # Run type checking
-    success, _ = run_command(
-        ["mypy", "audiobook_tools"], "Running type checking (mypy)"
-    )
-    if not success:
-        failures.append("Running type checking (mypy)")
-        sys.exit(1)
+    for step in steps:
+        success, _ = run_command(step)
+        if not success:
+            failures.append(step.name)
+            sys.exit(1)
 
     if failures:
         print("\n❌ Some verification steps failed:")
