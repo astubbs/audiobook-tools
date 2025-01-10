@@ -50,7 +50,8 @@ from . import tui as tui_module
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.WARNING,  # Default to WARNING
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -69,23 +70,41 @@ class CliContext:
 def cli(ctx, debug: bool, tui: bool):
     """Audiobook Tools - Process and convert audiobooks with chapter markers."""
     ctx.obj = CliContext(debug=debug, use_tui=tui)
+    
+    # Only set debug logging if --debug flag is used
     if debug:
         logging.getLogger().setLevel(logging.DEBUG)
         logger.debug("Debug mode enabled")
+    
+    logger.debug("CLI function called")
+    logger.debug("Context: %s", ctx.obj)
+    logger.debug("Invoked subcommand: %s", ctx.invoked_subcommand)
+    logger.debug("Args: %s", ctx.args)
 
     # If no command is provided and --help is not used, show the welcome screen
     if ctx.invoked_subcommand is None and not any(arg in ['--help', '-h'] for arg in ctx.args):
         logger.debug("Showing welcome screen")
-        if ctx.obj.use_tui:
-            logger.debug("Using TUI mode")
-            options = tui_module.display_welcome()
-            if options:
-                logger.debug("Options from welcome screen: %s", options)
-                ctx.invoke(process, **options)
-        else:
-            logger.debug("Using CLI mode")
-            click.echo(ctx.get_help())
-            ctx.exit(1)
+        try:
+            if ctx.obj.use_tui:
+                logger.debug("Using TUI mode")
+                logger.debug("About to call tui_module.display_welcome()")
+                options = tui_module.display_welcome()
+                logger.debug("Raw return value from display_welcome: %r", options)
+                if options:
+                    if isinstance(options, str):
+                        logger.error("display_welcome returned a string instead of options dict: %r", options)
+                        raise click.ClickException("Invalid return value from welcome screen")
+                    logger.debug("Invoking process command with options: %s", options)
+                    return ctx.invoke(process, **options)
+                else:
+                    logger.debug("No options returned from welcome screen")
+            else:
+                logger.debug("Using CLI mode")
+                click.echo(ctx.get_help())
+                ctx.exit(1)
+        except Exception as e:
+            logger.exception("Error in welcome screen")
+            raise click.ClickException(f"Welcome screen error: {str(e)}")
 
 
 @cli.command()
@@ -302,7 +321,8 @@ def process(
 def main():
     """Main entry point for the CLI."""
     try:
+        logger.debug("Starting main function")
         cli(obj={})
     except Exception as e:
-        logger.error("Unexpected error: %s", e)
+        logger.exception("Unexpected error in main function")
         raise click.ClickException(str(e))

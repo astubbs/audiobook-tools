@@ -52,9 +52,17 @@ git clone https://github.com/yourusername/audiobook-tools.git
 cd audiobook-tools
 poetry install
 
+# If using fish shell, you must activate the virtualenv first:
+poetry env activate  # This will show the source command
+source /path/to/virtualenv/bin/activate.fish
+
 # Run the tool
-poetry run audiobook-tools
+audiobook-tools
 ```
+
+> **Note for fish shell users**: Due to [known issues with Poetry and fish shell](https://github.com/python-poetry/poetry-plugin-shell/issues/7), 
+> you need to activate the virtualenv manually using `source` instead of using `poetry run`. This ensures the correct Python environment 
+> is used and avoids path management issues that can occur when Poetry tries to manage shell execution directly.
 
 ### System Requirements
 - Python 3.8 or later
