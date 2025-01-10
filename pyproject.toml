@@ -20,7 +20,7 @@ questionary = "^2.0.0"
 # Testing framework
 pytest = "^7.0.0"
 # Code formatter
-black = "^23.0.0"
+black = "^24.3.0"
 # Import sorter
 isort = "^5.0.0"
 # Static code analyzer
