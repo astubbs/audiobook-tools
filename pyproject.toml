@@ -8,7 +8,7 @@ packages = [{include = "audiobook_tools"}]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.13"
 click = "^8.0.0"
 rich = "^13.0.0"
 questionary = "^2.0.0"
@@ -19,6 +19,7 @@ black = "^23.0.0"
 isort = "^5.0.0"
 pylint = "^3.0.0"
 tox = "^4.11.3"
+mypy = "^1.8.0"
 
 [tool.poetry.scripts]
 audiobook-tools = "audiobook_tools.cli.main:main"
