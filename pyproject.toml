@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "audiobook-tools"
+version = "0.1.0"
+description = "Convert CD rips (FLAC+CUE) and MP3 files into M4B audiobooks with chapter markers"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+]
+
+[project.scripts]
+audiobook = "audiobook_tools.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

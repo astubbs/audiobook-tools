@@ -1,3 +1,10 @@
 Example Author - Example Book (Example Author) - 2005 (FLAC, 278 kbps)
 Example Author - Example Book - Audio Book
 out/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
