@@ -18,7 +18,7 @@ questionary = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 # Testing framework
-pytest = "^7.0.0"
+pytest = ">=7,<10"
 # Code formatter
 black = "^24.3.0"
 # Import sorter
