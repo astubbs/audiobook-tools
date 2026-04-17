@@ -22,11 +22,16 @@ def encode_to_aac(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "ffmpeg", "-y",
-        "-i", str(input_path),
-        "-c:a", "aac",
-        "-b:a", bitrate,
-        "-movflags", "+faststart",
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(input_path),
+        "-c:a",
+        "aac",
+        "-b:a",
+        bitrate,
+        "-movflags",
+        "+faststart",
         str(output_path),
     ]
     print(f"Encoding to AAC ({bitrate})...")

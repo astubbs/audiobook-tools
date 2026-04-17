@@ -41,11 +41,7 @@ class TestCLI:
 
     def test_chapters_requires_audio_for_ffmpeg(self, tmp_path):
         cue = tmp_path / "test.cue"
-        cue.write_text(
-            "  TRACK 01 AUDIO\n"
-            '    TITLE "Test"\n'
-            "    INDEX 01 00:00:00\n"
-        )
+        cue.write_text('  TRACK 01 AUDIO\n    TITLE "Test"\n    INDEX 01 00:00:00\n')
         runner = CliRunner()
         result = runner.invoke(main, ["chapters", str(cue)])
         assert result.exit_code != 0

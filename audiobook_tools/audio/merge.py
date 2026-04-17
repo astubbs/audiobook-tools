@@ -104,10 +104,16 @@ def merge_mp3(
             f.write(f"file '{mp3}'\n")
 
     cmd = [
-        "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0",
-        "-i", str(concat_list),
-        "-c", "copy",
+        "ffmpeg",
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        str(concat_list),
+        "-c",
+        "copy",
         str(output_path),
     ]
     subprocess.run(cmd, check=True)

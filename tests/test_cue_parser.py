@@ -1,13 +1,11 @@
 """Tests for CUE sheet parsing and combining."""
 
-import shutil
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from audiobook_tools.cue.combiner import calculate_cumulative_duration, combine_cue_sheets
-from audiobook_tools.cue.parser import CueSheet, find_cue_files, parse_cue_file
+from audiobook_tools.cue.parser import find_cue_files, parse_cue_file
 from audiobook_tools.utils.time import seconds_to_cue_time
 
 

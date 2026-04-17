@@ -12,9 +12,7 @@ from audiobook_tools.cue.parser import CueSheet, find_cue_files, parse_cue_file
 from audiobook_tools.utils.time import cue_time_to_seconds, seconds_to_cue_time
 
 
-def calculate_cumulative_duration(
-    cue_sheets: list[CueSheet], index: int
-) -> float:
+def calculate_cumulative_duration(cue_sheets: list[CueSheet], index: int) -> float:
     """Calculate the start time for a given CD by summing durations of previous CDs.
 
     Args:

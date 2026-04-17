@@ -28,9 +28,12 @@ def create_m4b_ffmpeg(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
-        "ffmpeg", "-y",
-        "-i", str(audio_path),
-        "-i", str(chapters_path),
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(audio_path),
+        "-i",
+        str(chapters_path),
     ]
 
     if cover_path:
@@ -39,11 +42,16 @@ def create_m4b_ffmpeg(
     cmd.extend(["-map_metadata", "1"])
 
     if cover_path:
-        cmd.extend([
-            "-map", "0:a",
-            "-map", "2:v",
-            "-disposition:v:0", "attached_pic",
-        ])
+        cmd.extend(
+            [
+                "-map",
+                "0:a",
+                "-map",
+                "2:v",
+                "-disposition:v:0",
+                "attached_pic",
+            ]
+        )
 
     cmd.extend(["-c:a", "copy"])
 
@@ -76,8 +84,10 @@ def create_m4b_mp4box(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         "MP4Box",
-        "-add", str(audio_path),
-        "-chap", str(chapters_path),
+        "-add",
+        str(audio_path),
+        "-chap",
+        str(chapters_path),
         str(output_path),
     ]
     print("Creating M4B with MP4Box...")

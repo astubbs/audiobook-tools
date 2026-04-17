@@ -13,18 +13,27 @@ def main():
 
 @main.command()
 @click.argument("input_dir", type=click.Path(exists=True, path_type=Path))
-@click.option("--output-dir", "-o", type=click.Path(path_type=Path), default=None,
-              help="Output directory (default: ./out relative to input_dir).")
+@click.option(
+    "--output-dir",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output directory (default: ./out relative to input_dir).",
+)
 @click.option("--bitrate", "-b", default="64k", help="Audio bitrate (default: 64k).")
-@click.option("--method", type=click.Choice(["ffmpeg", "mp4box"]), default="ffmpeg",
-              help="M4B creation method.")
+@click.option(
+    "--method",
+    type=click.Choice(["ffmpeg", "mp4box"]),
+    default="ffmpeg",
+    help="M4B creation method.",
+)
 @click.option("--title", "-t", default=None, help="Audiobook title.")
 @click.option("--artist", "-a", default=None, help="Author/artist name.")
-@click.option("--cover", type=click.Path(exists=True, path_type=Path), default=None,
-              help="Cover art image.")
+@click.option(
+    "--cover", type=click.Path(exists=True, path_type=Path), default=None, help="Cover art image."
+)
 @click.option("--dry-run", is_flag=True, help="Show what would happen without making changes.")
-@click.option("--resume", is_flag=True,
-              help="Use existing intermediate files if present.")
+@click.option("--resume", is_flag=True, help="Use existing intermediate files if present.")
 def convert(input_dir, output_dir, bitrate, method, title, artist, cover, dry_run, resume):
     """Convert an audiobook directory to M4B.
 
@@ -104,8 +113,9 @@ def convert(input_dir, output_dir, bitrate, method, title, artist, cover, dry_ru
     m4b_file = output_dir / "audiobook.m4b"
     click.echo("\nStep 4: Creating M4B audiobook...")
     if method == "ffmpeg":
-        create_m4b_ffmpeg(aac_file, chapters_file, m4b_file,
-                          title=title, artist=artist, cover_path=cover)
+        create_m4b_ffmpeg(
+            aac_file, chapters_file, m4b_file, title=title, artist=artist, cover_path=cover
+        )
     else:
         create_m4b_mp4box(aac_file, chapters_file, m4b_file)
 
@@ -115,11 +125,17 @@ def convert(input_dir, output_dir, bitrate, method, title, artist, cover, dry_ru
 
 @main.command("combine-cue")
 @click.argument("input_dir", type=click.Path(exists=True, path_type=Path))
-@click.option("--output", "-o", type=click.Path(path_type=Path),
-              default="./out/combined.cue", help="Output CUE file path.")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default="./out/combined.cue",
+    help="Output CUE file path.",
+)
 def combine_cue(input_dir, output):
     """Combine multiple CUE sheets into one."""
     from audiobook_tools.cue.combiner import combine_cue_sheets
+
     combine_cue_sheets(input_dir, Path(output))
 
 
@@ -142,10 +158,13 @@ def merge(input_dir, output_dir, dry_run):
 @main.command()
 @click.argument("cue_file", type=click.Path(exists=True, path_type=Path))
 @click.option("--format", "fmt", type=click.Choice(["ffmpeg", "mp4box"]), default="ffmpeg")
-@click.option("--audio-file", type=click.Path(exists=True, path_type=Path), default=None,
-              help="Audio file (required for ffmpeg format, to set last chapter end time).")
-@click.option("--output", "-o", type=click.Path(path_type=Path),
-              default="./out/chapters.txt")
+@click.option(
+    "--audio-file",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Audio file (required for ffmpeg format, to set last chapter end time).",
+)
+@click.option("--output", "-o", type=click.Path(path_type=Path), default="./out/chapters.txt")
 def chapters(cue_file, fmt, audio_file, output):
     """Generate a chapter file from a CUE sheet."""
     from audiobook_tools.chapters.ffmpeg import generate_ffmetadata
@@ -193,6 +212,7 @@ def _generate_mp3_chapters(mp3_files: list[Path], output_path: Path) -> int:
       CD1 - 01 - Introduction.mp3
     """
     import re
+
     from audiobook_tools.audio.probe import get_duration_ms
 
     mp3_files = sorted(mp3_files)
@@ -204,10 +224,7 @@ def _generate_mp3_chapters(mp3_files: list[Path], output_path: Path) -> int:
         # Try to extract chapter title from filename
         # Patterns: "01 - Title", "CD1 - 01 - Title", just "Title"
         match = re.search(r"(?:\d+\s*-\s*)?(?:CD\d+\s*-\s*)?(\d+\s*-\s*)?(.+)", name)
-        if match:
-            title = match.group(2).strip()
-        else:
-            title = name
+        title = match.group(2).strip() if match else name
 
         chapters.append((current_ms, title))
         current_ms += get_duration_ms(f)

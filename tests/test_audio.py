@@ -1,11 +1,10 @@
 """Tests for audio operation modules."""
 
 from pathlib import Path
-from unittest.mock import patch, call
 
 import pytest
 
-from audiobook_tools.audio.merge import find_audio_files, _cd_sort_key
+from audiobook_tools.audio.merge import _cd_sort_key, find_audio_files
 
 
 @pytest.fixture

@@ -23,6 +23,5 @@ def test_require_tool_found():
 
 
 def test_require_tool_missing():
-    with patch("shutil.which", return_value=None):
-        with pytest.raises(SystemExit):
-            require_tool("nonexistent")
+    with patch("shutil.which", return_value=None), pytest.raises(SystemExit):
+        require_tool("nonexistent")

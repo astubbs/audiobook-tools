@@ -9,8 +9,10 @@ def get_duration_seconds(audio_file: str | Path) -> float:
     """Get the duration of an audio file in seconds using ffprobe."""
     cmd = [
         "ffprobe",
-        "-v", "quiet",
-        "-print_format", "json",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
         "-show_format",
         str(audio_file),
     ]
