@@ -52,7 +52,7 @@ jobs:
         run: pytest --cov=audiobook_tools --cov-report=xml --cov-report=term-missing -v
       - name: Upload coverage to Codecov
         if: always() && matrix.python-version == '3.12'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
           flags: unittests
