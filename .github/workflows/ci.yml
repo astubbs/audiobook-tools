@@ -1,0 +1,72 @@
+# PR builds: lint + test matrix in parallel with fail-fast
+# Push builds (main): same jobs, fail-fast enabled
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  test:
+    name: "Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: ${{ github.event_name == 'push' }}
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install media tools (ffmpeg, sox, MP4Box) for integration tests
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg sox gpac
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+      - name: Run tests with coverage
+        run: pytest --cov=audiobook_tools --cov-report=xml --cov-report=term-missing -v
+      - name: Upload coverage to Codecov
+        if: always() && matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    name: Dependency Vulnerabilities
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always

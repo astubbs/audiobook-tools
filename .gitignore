@@ -1,36 +1,24 @@
-samples
-out
-.idea
-.codebuddy
+# Audiobook source/working directories and generated output.
+# Add your own local source folders to .git/info/exclude to keep them personal.
+out/
+*.flac
+*.m4b
+*.m4a
+*.aac
+
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.vscode/
-.tox/
-audiobook_tools.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Claude Code local session/worktree data
+.claude/
+
+# Keep test fixtures even though the audio extensions above are ignored.
+!tests/data/**

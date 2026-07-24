@@ -2,70 +2,63 @@
 
 ## Setup
 
-1. Install Python 3.8 or higher
-2. Install Poetry for dependency management
-3. Install development dependencies:
-   ```bash
-   poetry install
-   ```
+Requires Python 3.10+ and the external tools (`ffmpeg`, `ffprobe`, `sox`; `MP4Box`
+optional). Install the package with dev dependencies:
 
-## Verification
-
-Run all checks with:
 ```bash
-python scripts/verify.py
+pip install -e ".[dev]"
 ```
 
-This runs:
-- Tests (pytest)
-- Code formatting (black)
-- Import sorting (isort)
-- Linting (pylint)
-- Type checking (mypy)
+Verify the external tools are available:
 
-You can also run individual checks:
 ```bash
-# Run tests
-poetry run pytest
-
-# Run linting
-poetry run black audiobook_tools tests
-poetry run isort audiobook_tools tests
-poetry run pylint audiobook_tools tests
-
-# Run type checking
-poetry run mypy audiobook_tools
+audiobook check-tools
 ```
 
-## Contributing Guidelines
+## Checks
 
-1. **Code Style**
-   - Follow PEP 8
-   - Use type hints
-   - Format code with black
-   - Sort imports with isort
+```bash
+pytest                 # run the test suite
+ruff check .           # lint
+ruff format .          # auto-format (CI uses --check)
+```
 
-2. **Code Changes**
-   - Keep changes as simple as the code that was replaced
-   - Don't make things more complicated than they need to be
-   - If you find complex code, simplify it in a separate PR
+CI (`.github/workflows/ci.yml`) runs the ruff lint + format gate and the pytest
+matrix on Python 3.10-3.13, plus a dependency-review job on PRs.
 
-3. **Linting**
-   - If disabling lint rules, comment the justification
-   - Example:
-     ```python
-     # pylint: disable=too-many-locals
-     # This function processes CUE sheets which require tracking multiple local variables
-     # Breaking it up would make the code harder to understand
-     def parse_cue_file(...):
-     ```
+## Project structure
 
-4. **Testing**
-   - Write tests for new features
-   - Maintain test coverage
-   - Use pytest fixtures for test setup
+```
+audiobook_tools/
+  cli.py              # click CLI: group + convert / merge / combine-cue / chapters / check-tools
+  tui.py              # interactive rich + questionary flow (launched when no subcommand)
+  audio/              # merge, encode, m4b, probe  (ffmpeg / sox / MP4Box wrappers)
+  chapters/           # ffmpeg / mp4box / mp3 chapter generation (+ _common CUE helper)
+  cue/                # CUE sheet parsing and combining
+  utils/              # time-format conversions, external-tool checks
+tests/                # mocked unit tests (no real audio needed)
+```
 
-5. **Documentation**
-   - Update docstrings for changed code
-   - Keep README.md focused on user documentation
-   - Add development notes here in DEVELOPMENT.md 
+## The pipeline
+
+`convert` runs a linear pipeline: merge audio -> generate chapters -> encode to AAC
+-> mux into M4B. Intermediate files land in the output directory; `--resume` reuses
+any that already exist. The interactive TUI collects options and then invokes the
+same `convert` command, so there is a single code path for the actual work.
+
+## Conventions
+
+- Type hints throughout; use `X | None` unions (Python 3.10+).
+- Public functions and classes get docstrings.
+- Mock external tools (`ffmpeg`, `sox`, `MP4Box`, `ffprobe`) in tests - never require
+  real audio files.
+- Use neutral, non-copyrighted sample data in tests, fixtures, and docs.
+- Keep changes as simple as the code they replace; if you find complex code, simplify
+  it in a separate change.
+
+## Release process
+
+1. Update the version in `pyproject.toml`.
+2. Move `CHANGELOG.md`'s `[Unreleased]` entries under a new version heading.
+3. Commit, tag (`vX.Y.Z`), push, and create a GitHub release. See `docs/LAUNCH.md`
+   for the full first-release checklist.
