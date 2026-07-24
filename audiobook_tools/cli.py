@@ -5,10 +5,33 @@ from pathlib import Path
 import click
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version="0.1.0")
-def main():
-    """Convert CD rips and MP3 files into M4B audiobooks with chapter markers."""
+@click.option(
+    "--tui/--no-tui",
+    default=True,
+    help="Launch the interactive TUI when no command is given (default: enabled).",
+)
+@click.pass_context
+def main(ctx, tui):
+    """Convert CD rips and MP3 files into M4B audiobooks with chapter markers.
+
+    Run with no command to launch an interactive guide, or use a subcommand
+    (convert, merge, combine-cue, chapters, check-tools) directly.
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if tui:
+        from audiobook_tools.tui import display_welcome
+
+        options = display_welcome()
+        if options is None:
+            click.echo("Cancelled.")
+            return
+        ctx.invoke(convert, **options)
+    else:
+        click.echo(ctx.get_help())
 
 
 @main.command()
@@ -39,21 +62,35 @@ def convert(input_dir, output_dir, bitrate, method, title, artist, cover, dry_ru
 
     INPUT_DIR should contain CD subdirectories with FLAC+CUE or MP3 files.
     """
+    import time
+
+    from rich.console import Console
+    from rich.panel import Panel
+
     from audiobook_tools.audio.encode import encode_to_aac
     from audiobook_tools.audio.m4b import create_m4b_ffmpeg, create_m4b_mp4box
-    from audiobook_tools.audio.merge import find_audio_files, merge_flac, merge_mp3
+    from audiobook_tools.audio.merge import (
+        find_audio_files,
+        merge_flac,
+        merge_mp3,
+        ordered_mp3_files,
+    )
     from audiobook_tools.audio.probe import get_duration_seconds
     from audiobook_tools.chapters.ffmpeg import generate_ffmetadata
+    from audiobook_tools.chapters.mp3 import generate_mp3_chapters
     from audiobook_tools.chapters.mp4box import generate_mp4box_chapters
     from audiobook_tools.cue.combiner import combine_cue_sheets
+
+    console = Console()
 
     if output_dir is None:
         output_dir = Path("./out")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Detect input format
+    # Detect input format. MP3 files are gathered in playback order so chapter
+    # timestamps align with the concatenated audio.
     flac_files = find_audio_files(input_dir, "flac")
-    mp3_files = list(input_dir.rglob("*.mp3"))
+    mp3_files = [] if flac_files else ordered_mp3_files(input_dir)
     if flac_files:
         input_format = "flac"
     elif mp3_files:
@@ -61,57 +98,54 @@ def convert(input_dir, output_dir, bitrate, method, title, artist, cover, dry_ru
     else:
         raise click.ClickException(f"No FLAC or MP3 files found in {input_dir}")
 
-    click.echo(f"Detected format: {input_format.upper()}")
-    click.echo(f"Output directory: {output_dir}")
+    console.print(f"[bold]Detected format:[/bold] {input_format.upper()}")
+    console.print(f"[bold]Output directory:[/bold] {output_dir}")
 
-    if dry_run:
-        click.echo("\n--- DRY RUN ---")
+    start = time.monotonic()
 
-    # Step 1: Merge audio files
+    def step(number: int, message: str) -> None:
+        console.print(f"\n[bold blue]Step {number}/4:[/bold blue] {message}")
+
+    # Step 1: Merge audio files (sox/ffmpeg show their own progress)
     combined_audio = output_dir / f"combined.{input_format}"
     if resume and combined_audio.exists():
-        click.echo(f"\nStep 1: Using existing {combined_audio}")
+        step(1, f"Using existing {combined_audio.name}")
     else:
-        click.echo(f"\nStep 1: Merging {input_format.upper()} files...")
+        step(1, f"Merging {input_format.upper()} files")
         if input_format == "flac":
             merge_flac(input_dir, combined_audio, dry_run=dry_run)
         else:
             merge_mp3(input_dir, combined_audio, dry_run=dry_run)
 
     if dry_run:
-        click.echo("\nDry run complete.")
+        console.print("\n[yellow]Dry run complete.[/yellow] No files were written.")
         return
 
-    # Step 2: Process chapters
-    click.echo("\nStep 2: Generating chapter metadata...")
+    # Step 2: Generate chapter metadata
+    step(2, "Generating chapter metadata")
+    chapters_file = output_dir / "chapters.txt"
     if input_format == "flac":
         combined_cue = output_dir / "combined.cue"
         combine_cue_sheets(input_dir, combined_cue)
-
         if method == "ffmpeg":
-            chapters_file = output_dir / "chapters.txt"
             count = generate_ffmetadata(combined_cue, combined_audio, chapters_file)
         else:
-            chapters_file = output_dir / "chapters.txt"
             count = generate_mp4box_chapters(combined_cue, chapters_file)
-        click.echo(f"Generated {count} chapters")
     else:
-        # MP3: generate chapters from filenames (Phase 7)
-        chapters_file = output_dir / "chapters.txt"
-        count = _generate_mp3_chapters(mp3_files, chapters_file)
-        click.echo(f"Generated {count} chapters from filenames")
+        count = generate_mp3_chapters(mp3_files, chapters_file, method=method)
+    console.print(f"  {count} chapters")
 
-    # Step 3: Encode to AAC
+    # Step 3: Encode to AAC (ffmpeg shows its own progress)
     aac_file = output_dir / "audiobook.aac"
     if resume and aac_file.exists():
-        click.echo(f"\nStep 3: Using existing {aac_file}")
+        step(3, f"Using existing {aac_file.name}")
     else:
-        click.echo(f"\nStep 3: Encoding to AAC ({bitrate})...")
+        step(3, f"Encoding to AAC ({bitrate})")
         encode_to_aac(combined_audio, aac_file, bitrate=bitrate)
 
     # Step 4: Create M4B
     m4b_file = output_dir / "audiobook.m4b"
-    click.echo("\nStep 4: Creating M4B audiobook...")
+    step(4, "Creating M4B audiobook")
     if method == "ffmpeg":
         create_m4b_ffmpeg(
             aac_file, chapters_file, m4b_file, title=title, artist=artist, cover_path=cover
@@ -119,8 +153,20 @@ def convert(input_dir, output_dir, bitrate, method, title, artist, cover, dry_ru
     else:
         create_m4b_mp4box(aac_file, chapters_file, m4b_file)
 
+    # Completion summary
     duration = get_duration_seconds(m4b_file)
-    click.echo(f"\nDone! {m4b_file} ({duration / 3600:.1f} hours)")
+    elapsed = time.monotonic() - start
+    console.print(
+        Panel(
+            f"[bold green]Audiobook created[/bold green]\n\n"
+            f"Output:   {m4b_file}\n"
+            f"Duration: {duration / 3600:.1f} h  ({count} chapters)\n"
+            f"Method:   {method}   Bitrate: {bitrate}\n"
+            f"Elapsed:  {elapsed:.0f}s",
+            title="✓ Done",
+            expand=False,
+        )
+    )
 
 
 @main.command("combine-cue")
@@ -202,45 +248,3 @@ def check_tools():
 
     if not all_ok:
         raise SystemExit(1)
-
-
-def _generate_mp3_chapters(mp3_files: list[Path], output_path: Path) -> int:
-    """Generate FFmpeg chapter metadata from MP3 filenames.
-
-    Extracts chapter titles from filenames like:
-      01 - Chapter One.mp3
-      CD1 - 01 - Introduction.mp3
-    """
-    import re
-
-    from audiobook_tools.audio.probe import get_duration_ms
-
-    mp3_files = sorted(mp3_files)
-    chapters: list[tuple[int, str]] = []
-    current_ms = 0
-
-    for f in mp3_files:
-        name = f.stem
-        # Try to extract chapter title from filename
-        # Patterns: "01 - Title", "CD1 - 01 - Title", just "Title"
-        match = re.search(r"(?:\d+\s*-\s*)?(?:CD\d+\s*-\s*)?(\d+\s*-\s*)?(.+)", name)
-        title = match.group(2).strip() if match else name
-
-        chapters.append((current_ms, title))
-        current_ms += get_duration_ms(f)
-
-    if not chapters:
-        return 0
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as out:
-        out.write(";FFMETADATA1\n\n")
-        for i, (start_ms, title) in enumerate(chapters):
-            end_ms = chapters[i + 1][0] if i < len(chapters) - 1 else current_ms
-            out.write("[CHAPTER]\n")
-            out.write("TIMEBASE=1/1000\n")
-            out.write(f"START={start_ms}\n")
-            out.write(f"END={end_ms}\n")
-            out.write(f"title={title}\n\n")
-
-    return len(chapters)

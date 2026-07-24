@@ -1,9 +1,12 @@
 """Generate MP4Box chapter files from CUE sheets."""
 
-import re
 from pathlib import Path
 
-from audiobook_tools.utils.time import cue_time_to_ms, ms_to_timestamp
+from audiobook_tools.chapters._common import (
+    cue_chapter_starts,
+    with_end_times,
+    write_mp4box,
+)
 
 
 def generate_mp4box_chapters(
@@ -19,27 +22,12 @@ def generate_mp4box_chapters(
     Returns:
         Number of chapters written.
     """
-    lines = cue_file.read_text(encoding="utf-8").splitlines()
-    chapters: list[tuple[int, str]] = []
-    current_title: str | None = None
-
-    for line in lines:
-        if "TITLE" in line:
-            match = re.search(r'TITLE\s+"([^"]*)"', line)
-            if match:
-                current_title = match.group(1)
-        elif "INDEX 01" in line and current_title:
-            match = re.search(r"INDEX 01 (\d+:\d+:\d+)", line)
-            if match:
-                start_ms = cue_time_to_ms(match.group(1))
-                chapters.append((start_ms, current_title))
-
-    if not chapters:
+    starts = cue_chapter_starts(cue_file)
+    if not starts:
         return 0
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        for start_ms, title in chapters:
-            f.write(f"{ms_to_timestamp(start_ms)} {title}\n")
-
+    # MP4Box uses only start times; the final end time is unused, so reuse the last
+    # start as a placeholder.
+    chapters = with_end_times(starts, starts[-1][0])
+    write_mp4box(chapters, output_path)
     return len(chapters)

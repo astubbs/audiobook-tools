@@ -16,7 +16,9 @@ def get_duration_seconds(audio_file: str | Path) -> float:
         "-show_format",
         str(audio_file),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        cmd, capture_output=True, text=True, check=True, stdin=subprocess.DEVNULL
+    )
     data = json.loads(result.stdout)
     return float(data["format"]["duration"])
 

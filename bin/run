@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Run the audiobook CLI from this project's virtualenv, without a global install.
+# On first run it builds the virtualenv and installs the package automatically.
+#
+#   bin/run                       # launch the interactive TUI
+#   bin/run convert ./book -o out # run a subcommand
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+venv_dir="$project_root/.venv"
+audiobook_bin="$venv_dir/bin/audiobook"
+
+if [ ! -x "$audiobook_bin" ]; then
+  python_bin="$(command -v python3 || command -v python || true)"
+  if [ -z "$python_bin" ]; then
+    echo "Error: python3 is required but was not found on PATH." >&2
+    exit 1
+  fi
+  echo "First run: setting up the audiobook virtualenv and installing the package..." >&2
+  [ -d "$venv_dir" ] || "$python_bin" -m venv "$venv_dir"
+  "$venv_dir/bin/pip" install --upgrade pip
+  "$venv_dir/bin/pip" install -e "$project_root"
+  echo "Setup complete." >&2
+fi
+
+exec "$audiobook_bin" "$@"

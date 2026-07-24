@@ -35,5 +35,5 @@ def encode_to_aac(
         str(output_path),
     ]
     print(f"Encoding to AAC ({bitrate})...")
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL)
     print(f"AAC file created: {output_path}")

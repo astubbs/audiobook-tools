@@ -1,6 +1,10 @@
-Example Author - Example Book (Example Author) - 2005 (FLAC, 278 kbps)
-Example Author - Example Book - Audio Book
+# Audiobook source/working directories and generated output.
+# Add your own local source folders to .git/info/exclude to keep them personal.
 out/
+*.flac
+*.m4b
+*.m4a
+*.aac
 
 # Python
 __pycache__/
@@ -8,3 +12,13 @@ __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Claude Code local session/worktree data
+.claude/
+
+# Keep test fixtures even though the audio extensions above are ignored.
+!tests/data/**

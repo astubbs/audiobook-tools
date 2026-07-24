@@ -38,6 +38,33 @@ Verify external tools are available:
 audiobook check-tools
 ```
 
+### Run without installing
+
+To try it straight from a checkout without a global install, use the launcher script.
+It builds a local virtualenv on first run and then executes the CLI:
+
+```bash
+bin/run                              # launch the interactive TUI
+bin/run convert ./yourbook -o ./out  # run a subcommand
+bin/run check-tools
+```
+
+Equivalently, once the virtualenv exists you can call it directly - `.venv/bin/audiobook`
+- or run the package as a module: `python -m audiobook_tools`.
+
+## Interactive mode
+
+Run with no arguments to launch a guided terminal interface that walks you through
+picking the input and output directories, the M4B method, and metadata, then runs the
+conversion:
+
+```bash
+audiobook
+```
+
+Prefer a non-interactive run? Use `--no-tui` (or just pass a subcommand like
+`convert` directly).
+
 ## Quick Start
 
 Convert a FLAC+CUE audiobook in one command:
@@ -51,6 +78,10 @@ This will:
 2. Combine CUE sheets with adjusted timestamps
 3. Encode to AAC (64k, optimized for spoken word)
 4. Create M4B with chapter markers
+
+Each step is labelled as it runs (with the underlying `sox`/`ffmpeg` progress shown
+for the long ones), and a summary of the finished audiobook - path, duration, chapter
+count, and elapsed time - prints at the end.
 
 ### Options
 
@@ -150,28 +181,25 @@ pytest tests/test_time.py -v
 
 ```
 audiobook_tools/
-  cli.py              # Click CLI entry point
+  cli.py              # Click CLI entry point (group + subcommands)
+  tui.py              # Interactive rich + questionary flow
   cue/
     parser.py          # CUE file parsing
     combiner.py        # Multi-CUE combination
   chapters/
+    _common.py         # Shared CUE -> (start, title) helper
     ffmpeg.py          # FFmpeg metadata chapters
     mp4box.py          # MP4Box chapters
+    mp3.py             # Chapters from MP3 filenames
   audio/
-    merge.py           # Audio file merging
+    merge.py           # Audio file merging + playback ordering
     encode.py          # AAC encoding
     m4b.py             # M4B creation
     probe.py           # ffprobe wrapper
   utils/
     time.py            # Time format conversions
     external.py        # External tool checking
-tests/
-  test_time.py
-  test_cue_parser.py
-  test_chapters.py
-  test_audio.py
-  test_cli.py
-  test_external.py
+tests/                # mocked unit tests (no real audio needed)
 ```
 
 ## License

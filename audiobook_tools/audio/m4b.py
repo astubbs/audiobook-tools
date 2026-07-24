@@ -63,7 +63,7 @@ def create_m4b_ffmpeg(
     cmd.extend(["-movflags", "+faststart", str(output_path)])
 
     print("Creating M4B with FFmpeg...")
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL)
     print(f"M4B file created: {output_path}")
 
 
@@ -91,5 +91,5 @@ def create_m4b_mp4box(
         str(output_path),
     ]
     print("Creating M4B with MP4Box...")
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL)
     print(f"M4B file created: {output_path}")

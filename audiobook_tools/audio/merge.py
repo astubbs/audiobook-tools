@@ -23,6 +23,21 @@ def find_audio_files(input_dir: Path, extension: str = "flac") -> list[Path]:
     return files
 
 
+def ordered_mp3_files(input_dir: Path) -> list[Path]:
+    """Return MP3 files in playback order.
+
+    CD-structured files (paths containing ``CD<n>``) are sorted by CD number then
+    by full path; otherwise files are sorted flat by name. The SAME ordering is
+    used for both merging and chapter generation so chapter timestamps line up
+    with the concatenated audio.
+    """
+    files = find_audio_files(input_dir, "mp3")
+    if files:
+        files.sort(key=lambda p: (_cd_sort_key(p), str(p)))
+        return files
+    return sorted(input_dir.rglob("*.mp3"))
+
+
 def merge_flac(
     input_dir: Path,
     output_path: Path,
@@ -56,7 +71,7 @@ def merge_flac(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = ["sox", "--show-progress"] + [str(f) for f in files] + [str(output_path)]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL)
 
     duration = get_duration_seconds(output_path)
     print(f"\nCombined file: {output_path} ({duration / 3600:.2f} hours)")
@@ -80,10 +95,7 @@ def merge_mp3(
     """
     require_tool("ffmpeg")
 
-    files = find_audio_files(input_dir, "mp3")
-    if not files:
-        # Also try flat directory (files sorted by name)
-        files = sorted(input_dir.rglob("*.mp3"))
+    files = ordered_mp3_files(input_dir)
     if not files:
         raise FileNotFoundError(f"No MP3 files found in {input_dir}")
 
@@ -97,11 +109,15 @@ def merge_mp3(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Create concat list file for ffmpeg
+    # Create concat list file for ffmpeg. Entries must be ABSOLUTE paths: ffmpeg's
+    # concat demuxer resolves relative entries against the list file's directory
+    # (not the CWD), which breaks when the output dir differs from the input dir.
+    # Single quotes in a path are escaped as '\'' per the concat file format.
     concat_list = output_path.parent / "concat_list.txt"
     with open(concat_list, "w", encoding="utf-8") as f:
         for mp3 in files:
-            f.write(f"file '{mp3}'\n")
+            safe_path = str(mp3.resolve()).replace("'", "'\\''")
+            f.write(f"file '{safe_path}'\n")
 
     cmd = [
         "ffmpeg",
@@ -116,7 +132,7 @@ def merge_mp3(
         "copy",
         str(output_path),
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, stdin=subprocess.DEVNULL)
     concat_list.unlink()
 
     print(f"\nCombined file: {output_path}")
